@@ -8,10 +8,12 @@ exposure_sec: 1.0
 # Regression scene for the gradient-magnitude NCC sub-pixel bias surfaced by the
 # disc offset sweep.  Both axes are planted at a whole-pixel offset, where the
 # bias is largest (it recurs at every integer offset and vanishes at the
-# half-pixel).  BodyDiscCorrelateNav should recover this to within a small
-# fraction of a pixel; the gradient-magnitude sub-pixel refinement instead biases
-# it by ~0.3 px per axis.  Guarding it here exercises the fix in the normal suite
-# without running the full offset sweep.
+# half-pixel).  The gradient-magnitude sub-pixel refinement biased it by ~0.3 px
+# per axis.  Guarding it here exercises the fix in the normal suite without running
+# the full offset sweep.  The body shades with the default lunar-Lambert law, and
+# the navigator's Lambert template pulls the answer 0.42 px toward the Sun (#1110),
+# which the expected block and sim_truth hold to bands; on a Lambert surface it
+# landed within 0.01 px.
 bodies:
   - name: RHEA
     center_v: 110.0
@@ -27,3 +29,10 @@ noise:
 offset_v: 3.0
 offset_u: 2.0
 offset_rotation_deg: 0.0
+expected:
+  status: success
+  # The body shades with the default lunar-Lambert law, and the navigator's
+  # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
+  # fused error over the seeds, measured as sim_truth.py describes.
+  known_offset_error_px: 0.4245
+  known_offset_error_tol_px: 0.0525

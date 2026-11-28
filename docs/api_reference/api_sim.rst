@@ -500,33 +500,3 @@ spindoctor.sim.render.telemetry
    :members:
    :undoc-members:
    :show-inheritance:
-
-spindoctor.sim.realism
-----------------------
-
-.. automodule:: spindoctor.sim.realism
-
-.. automodule:: spindoctor.sim.realism.artifact_rates
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.realism.divergence
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.realism.dynamic_range
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.realism.noise
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.realism.profiles
-   :members:
-   :undoc-members:
-   :show-inheritance:

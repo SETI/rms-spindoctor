@@ -366,6 +366,7 @@ def _lambert_relief_disc(
         limb_relief_rms=rms,
         limb_relief_corr_deg=corr_deg,
         relief_seed=3,
+        photometric_law='lambert',
         sub_observer_lat=sub_observer_lat,
     )
     grid = project_ellipsoid(
@@ -692,18 +693,11 @@ def test_relief_rms_zero_reproduces_the_relief_free_render_bit_identically() -> 
         assert np.array_equal(absent, zero)
 
 
-def test_explicit_lambert_law_reproduces_the_default_bit_identically() -> None:
-    """photometric_law 'lambert' and an absent key take the same render path."""
-    absent, _ = render_scene(_body_scene(oversample=None, body_extra={}))
-    explicit, _ = render_scene(
-        _body_scene(oversample=None, body_extra={'photometric_law': 'lambert'})
-    )
-    assert np.array_equal(absent, explicit)
-
-
 def test_non_lambert_law_changes_the_disc() -> None:
     """A non-Lambert law renders a different disc profile than Lambert."""
-    lambert, _ = render_scene(_body_scene(oversample=None, body_extra={}))
+    lambert, _ = render_scene(
+        _body_scene(oversample=None, body_extra={'photometric_law': 'lambert'})
+    )
     minnaert, _ = render_scene(
         _body_scene(oversample=None, body_extra={'photometric_law': 'minnaert'})
     )

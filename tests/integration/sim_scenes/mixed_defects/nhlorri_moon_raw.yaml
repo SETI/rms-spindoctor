@@ -24,9 +24,13 @@ exposure_sec: 0.085
 #   85 ms exposure; illustrative).
 #
 # The exposure runs 85 ms, 17 times the real frame's, because simulated
-# brightness has no shared scale with real frames (#895): at 85 ms the inner third
-# of the simulated disc reads a median 2,010 DN above the bias, and that of the
-# real one 1,865 DN, so the simulated disc is 8% brighter.
+# brightness has no shared scale with real frames (#895), and normal_albedo, 0.925,
+# makes the disc as bright as the real one: the brightest 1% of the disc reads
+# 2,310 DN above the bias, and that of lor_0034849319 2,309 DN.  The middle third
+# reads 2,070 DN, where the real one reads 1,801 DN, because the real Europa
+# brightens toward its sunlit limb more than the lunar-Lambert law does.  Neither
+# disc reaches the 4,095 DN top of the range; the brightest disc pixel reads
+# 3,256 DN above the bias here and 2,446 DN on the real frame.
 # The smear timings are set here instead of taken from the catalog, because the
 # exposure stands in for the real 5 ms frame and only the share of each column's
 # charge the smear carries can match it.  Against a per-row sky, the rows above
@@ -44,20 +48,24 @@ exposure_sec: 0.085
 # (about 1.2 px each).  The roll is the camera's measured twist, +0.1912 deg,
 # planted with roll fitting off as the camera ships.
 #
-# The fused answer lands 0.11 to 0.12 px off over 24 draws, at medium tier,
-# from the disc correlation and the limb fit together.  The disc correlation
-# lands 0.18 to 0.19 px off on every draw without flagging it, with the smear
-# removed too, and 0.004 to 0.022 px off without the roll.  The limb fit lands
-# 0.25 to 0.32 px off, and 0.43 to 0.48 px without the roll, so the twist offsets
-# part of its own error.  Each range spans 24 draws.
+# The fused answer lands 0.55 px off over 24 draws, toward the Sun, at medium
+# tier, from the disc correlation and the limb fit together.  The disc correlation
+# lands 0.64 to 0.65 px off on every draw without flagging it, and the limb fit 0.29
+# to 0.30 px off; the Lambert template's bias on the lunar-Lambert body (#1110)
+# sets most of those errors.  On a Lambert surface the fused answer landed 0.11 to
+# 0.12 px off, the disc correlation 0.18 to 0.19 px off, with the smear removed too,
+# and 0.004 to 0.022 px off without the roll, and the limb fit 0.25 to 0.32 px off,
+# and 0.43 to 0.48 px without the roll, so the twist offsets part of its own error.
 #
-# BodyBlobNav lands 6.8 to 7.1 px off without flagging it (#975).  The smear
-# causes it: without the smear it lands 0.16 to 0.19 px off.  Real raw frames
+# BodyBlobNav lands 7.3 to 7.6 px off without flagging it (#975).  On a Lambert
+# surface it landed 6.8 to 7.1 px off, and 0.16 to 0.19 px off without the smear,
+# so the smear causes it.  Real raw frames
 # carry the smear too, but the simulated smear is a step at each column's
 # centroid where the real one builds up across the disc (#920).  The fixed
-# pattern and the radiation hits are realistic, and each moves the fused answer
-# by at most 0.01 px, so the scene shows the navigator unaffected by them.  The
-# simulated header also moves it by at most 0.01 px, but its values reach only
+# pattern and the radiation hits are realistic, and on a Lambert surface each moved
+# the fused answer by at most 0.01 px, so the scene shows the navigator unaffected
+# by them.  The simulated header also moved it by at most 0.01 px, but its values
+# reach only
 # 255 DN where the real header reaches 4,038 DN, so the scene shows only that the
 # navigator ignores this approximation of the header.
 artifacts:
@@ -75,6 +83,14 @@ bodies:
     semi_c_px: 98.5
     illumination_angle: 230.0
     phase_angle: 28.0
+    normal_albedo: 0.925
 offset_v: 0.77
 offset_u: -0.94
 offset_rotation_deg: 0.1912
+expected:
+  status: success
+  # The body shades with the default lunar-Lambert law, and the navigator's
+  # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
+  # fused error over the seeds, measured as sim_truth.py describes.
+  known_offset_error_px: 0.551
+  known_offset_error_tol_px: 0.052

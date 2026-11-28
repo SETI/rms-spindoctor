@@ -463,7 +463,7 @@ can tell the four cameras apart. The entry states ``data_units: calibrated_if``,
 of the GEOMED product and of each camera's block, so a simulated frame is in I/F.
 
 **Realism match.** The match compares each camera with its own library frames
-(the 2026-11-25 record in ``tests/integration/realism_results/``). The two
+(the 2026-11-26 record in ``util/sim_realism/realism_results/``). The two
 entries without a library frame have no row.
 
 * ``vgiss_1_wac``, two Saturn frames. The simulated sky noise is 3.1e-3 I/F
@@ -477,11 +477,10 @@ entries without a library frame have no row.
   level above the floor is 7.3e-3 against 2.1e-2 I/F (W1/IQR 1.8), and the noise
   at signal is 3.0e-3 against 9.0e-3 I/F (W1/IQR 4.4). The realism match's star
   cutouts are its own, separate from the kernel fit's under PSF kernel below: the
-  real frame gives 6 (EE50 median 1.26 px), and its matched frame holds the
-  field's catalog stars, but none yields a usable simulated cutout, so the match
-  leaves the PSF unconstrained. On the real frame the star-field fit locks at
-  0.94 on 7 of 11 predicted stars. On the matched frame it predicts 5 and locks
-  at 0.6, a wide-offset lock on 3 inliers.
+  real frame gives 6 (EE50 median 1.27 px), and its matched frame, which holds the
+  field's catalog stars, gives 4 (0.93 px). One frame pair leaves the PSF
+  unconstrained. On the real frame the star-field fit locks at
+  0.95 on 7 of 18 predicted stars, and on the matched frame at 0.95 on 9 of 14.
 
 The simulated values are nearly the same for both cameras, because their entries
 hold the same numbers. The real frames differ: the narrow angle frame's sky is
@@ -589,6 +588,12 @@ reseau-anchored resampling, so it can't say how many hits the target took.
 resampling with the frames held locally. The distortion is measured, but on
 one of the four cameras.
 
+**Body statistics.** The cohort's Voyager frames show their moons at most a few pixels
+across, and the photometric-law study leaves out moons under 10 px across (see
+:ref:`sim-realism-law-study`), so their moons do not enter it. For these cameras the
+body statistics (the limb peak, the rise width, the disc profile, and the law) are
+unchecked.
+
 Image library and test coverage
 ===============================
 
@@ -629,13 +634,19 @@ measured Voyager 1 twist may differ between the two cameras by far more than the
 placeholder. Roll fitting stays off, as the cameras ship.
 
 The simulated frames are in I/F, and the exposure does not change a simulated
-body's brightness. A simulated moon or planet peaks near I/F 1, where the real
-frames peak at 0.3 to 0.5.
+body's brightness. Each body's normal albedo sets its brightness from its real
+frame: the brightest 1% of the simulated disc matches the brightest 1% of the real
+one, both measured in I/F above the sky. The moon, shaded with the default
+lunar-Lambert law, takes 0.357 and peaks near I/F 0.44, where the real disc peaks
+near 0.5. Saturn takes 0.357, and its ring albedos are scaled with it, so each ring
+keeps its brightness relative to the disc.
 
 - ``vgiss_1_nac_disc``: a moon 197 px across at a phase of 32 degrees, after a
-  Voyager 1 frame of Ganymede at 0.24 s, offset 42 px. The answer lands 0.06 to
-  0.57 px off over 24 draws, at medium confidence, from the disc correlation, the
-  limb fit, and the blob together.
+  Voyager 1 frame of Ganymede at 0.24 s, offset 42 px. The answer lands 0.26 to
+  0.84 px off over 24 draws, at medium confidence, from the disc correlation, the
+  limb fit, and the blob together. It lands toward the Sun, where the navigator's
+  Lambert template meets the lunar-Lambert surface (see
+  :ref:`sim-photometric-laws`). On a Lambert surface it lands 0.04 to 0.58 px off.
 - ``vgiss_1_wac_saturn``: Saturn about 95 px across with its rings at an opening
   of 8.6 degrees, after two library frames at 7.68 s, offset 32 px. The scale,
   the ring radii, and the ring brightness follow the real frame, and the planet's
@@ -643,7 +654,7 @@ frames peak at 0.3 to 0.5.
   navigate on the planet, and the navigator models the rings only as an annulus,
   which it flags spurious, so the scene marks no ring navigable. As on the real
   frame, the disc correlation passes its quality threshold. It carries the
-  answer, 0.18 to 0.69 px off over 24 draws, at medium confidence. The planet is
+  answer, 0.17 to 0.68 px off over 24 draws, at medium confidence. The planet is
   under 100 px across, so the simulated body model gives it no limb, and the limb
   fit does not run, where on the real frame it does.
 - ``vgiss_2_nac_star_field``: the Pleiades field of the library frame C1205021 at

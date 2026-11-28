@@ -1,8 +1,8 @@
 {
   "confidence": 0.4,
   "confidence_rank": "medium",
-  "offset_du_px": 0.0014810590834315462,
-  "offset_dv_px": 0.000751111202404786,
+  "offset_du_px": -0.015219181121750578,
+  "offset_dv_px": 0.03852703152239201,
   "scene_name": "small_body",
   "status": "success"
 }

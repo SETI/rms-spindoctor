@@ -165,6 +165,7 @@ _FULL_SCENE: dict[str, Any] = {
             'crater_relief_scale': 0.6,
             'photometric_law': 'minnaert',
             'minnaert_k': 0.6,
+            'normal_albedo': 0.45,
             'opposition_surge': {'amplitude': 0.4, 'width_deg': 5.0},
             'albedo_texture': {
                 'rms': 0.05,

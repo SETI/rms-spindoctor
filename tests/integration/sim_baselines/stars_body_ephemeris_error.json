@@ -1,8 +1,8 @@
 {
-  "confidence": 0.7873845037234912,
+  "confidence": 0.7856790155109118,
   "confidence_rank": "medium",
-  "offset_du_px": 21.118714912059545,
-  "offset_dv_px": -11.469831268345361,
+  "offset_du_px": 21.168351863387205,
+  "offset_dv_px": -11.49114154634642,
   "scene_name": "stars_body_ephemeris_error",
   "status": "success"
 }

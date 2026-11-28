@@ -892,6 +892,39 @@ sequence here is a run of frames less than a day apart.
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
 
+**Limb silhouettes in the realism match.** The realism match measures where each real
+limb's brightness gradient peaks against the body's silhouette. For Mimas, Enceladus,
+Tethys, Dione, and Rhea the frame reader sets that silhouette from the IAU radii in
+NAIF's pck00010 and pck00011 (Thomas 2010), in
+``util/sim_realism/sim_realism_frames_cassini.py``. The Cassini frames load the
+Cassini PCK after NAIF's, and it gives the older radii of Thomas et al. (2007): Tethys
+540.4 by 531.1 by 527.5 km against 538.4 by 528.3 by 526.3 km, and Rhea's long axis
+767.2 km against 765.0 km. Against the older radii, four of the five real Tethys limbs
+in the cohort lay 0.24% to 0.35% of their radius inside their matched limbs, 0.98 px
+on a disc 765 px across. Against the IAU radii all five lie from 0.09 to 0.25 px
+inside their matched limbs, and the narrow angle bin at 60 to 120 degrees phase and
+100 to 400 px lies within its band. Only the silhouettes use the IAU radii. The body
+models, the albedo measurement, and real navigation keep the Cassini PCK's.
+
+In that bin a Dione frame taken through the P120 polarizer and the MT2 methane-band
+filter at 107 degrees phase, N1489256001, peaks 0.10 px outside its silhouette, and its
+matched limb 0.12 px. Of the other two real limbs the bin keeps, one, Dione at 75
+degrees, lies 0.09 px outside its silhouette and the other, Tethys at 111 degrees,
+0.06 px inside it. The bin's fourth limb, of Dione in N1487595731 at 92 degrees, passes in
+front of Rhea; with the vertices whose tracks cross Rhea's disc left out, the arc that
+remains gives too imprecise an offset, so the realism match leaves it out.
+
+**Frames in the photometric-law study.** All 27 discs the photometric-law study measures
+come from the cohort's calibrated Cassini frames of Saturn's moons, 26 narrow angle and
+one wide angle, of Rhea (see :ref:`sim-realism-law-study`). The choice of the default
+body law rests on these frames (see :ref:`sim-photometric-laws`).
+
+**Iapetus in the photometric-law study.** The study measures Iapetus over a cap inside
+each of its two terrains (see :ref:`sim-realism-law-study`). Of the cohort's three
+Iapetus frames, one shows the dark terrain's cap lit (N1806609736, at 58 degrees phase),
+one shows the bright terrain's cap lit (N1686349893, at 81 degrees), and in one neither
+cap is lit on the side in view (N1483174087).
+
 **Passbands.** Each camera's entry sets a passband table (``coiss_nac`` and
 ``coiss_wac``) built from the system transmission files of the CISSCAL
 calibration volume, ``COISS_0011``, with its solar spectrum. The solar-weighted
@@ -1056,12 +1089,15 @@ measured twist of +0.0115 degrees, and the wide angle scenes -0.0115 degrees.
   brighter than the simulator draws them through that filter, and about twice
   as bright as it draws them through the clear filter.
 - ``coiss_calib_nac_disc``: a calibrated narrow angle frame of a moon 280 px
-  across, offset 57 px. The answer lands 0.09 to 0.10 px off.
+  across, offset 57 px, as bright as Dione in a real frame at 34 degrees phase.
+  The answer lands 0.23 px off, toward the Sun, where the navigator's Lambert
+  template meets the lunar-Lambert surface (see :ref:`sim-photometric-laws`).
 - ``coiss_wac_disc``: a raw wide angle frame of a moon 128 px across, offset
-  13 px. The disc correlation finds the offset to 0.09 px but marks it
-  spurious, because it lies within 2 px of the edge of the 13 px search window.
-  The limb fit carries the frame at low confidence, 0.13 to 0.17 px off, and
-  the scene's expected block holds the low tier.
+  13 px, as bright as Rhea in a real frame taken through the same filters at the
+  same 5 ms exposure. The disc correlation finds the offset to 0.28 px but marks
+  it spurious, because it lies within 2 px of the edge of the 13 px search window.
+  The limb fit carries the frame at low confidence, 0.11 to 0.13 px off, and the
+  scene's expected block holds the low tier.
 - ``coiss_calib_wac_star_field``: a calibrated wide angle star field, 95 stars
   of V 7.4 to 10.4 at 26 s, offset 12 px. The answer lands 0.01 to 0.03 px off.
 - ``coiss_calib_wac_star_field_large_offset``: the same field with the offset at
@@ -1120,13 +1156,21 @@ real frames of this camera carry together:
   table and lossy compression. In the metadata indexes of COISS_2010, COISS_2023,
   COISS_2050, and COISS_2068, every lossy frame of either camera is an 8-bit
   frame, and lossy labels give no count of lost lines. The simulator's codec steps
-  every frequency alike, so its 128 DN step is illustrative: it matches the block
-  edges of real lossy frames and zeroes more of the fine detail than they lose.
-  The scene seeds only the noise, so it has 16 distinct draws, and the fused
-  answer lands 0.034 to 0.050 px off over them. The table and the compression are
-  realistic but leave the answer where it is: with either one removed, the fused
-  answer lands 0.041 to 0.047 px off. So the scene shows that the navigator is
-  unaffected by them.
+  every frequency alike, so its step is illustrative. The step is set by one
+  figure, the contrast across block edges inside the disc divided by the contrast
+  inside the blocks. Three real lossy Rhea frames show 1.04, 1.10, and 1.51, a mean
+  of 1.22, and the scene's 64 DN step gives 1.12 to 1.27. The figure depends on how
+  much fine detail each disc carries, so the step follows all three frames rather
+  than the one the scene copies, which shows the sharpest block edges. Steps of 80
+  and 128 DN give 1.25 to 1.43 and 1.60. The step zeroes more of the fine detail
+  than the real frames lose. The brightest 1% of the disc reads the same DN as on
+  the real frame the scene follows. The scene seeds only the noise, so it has 16
+  distinct draws, and the fused answer lands 0.39 to 0.40 px off over them, toward
+  the Sun, where the navigator's Lambert template meets the lunar-Lambert surface.
+  The table and the compression are realistic but left the answer where it was on
+  a white Lambert surface with a 128 DN step: the fused answer landed 0.043 to
+  0.054 px off, and 0.046 to 0.057 px off with either one removed. So the scene
+  shows that the navigator is unaffected by them.
 - ``coiss_nac_stars_moon_lost_lines`` is a frame of stars and a gibbous moon that
   lost its last 41 lines and several groups of whole lines down the frame, and whose
   scene drifts 2 px during the exposure. It follows two real frames, one that lost
@@ -1138,19 +1182,22 @@ real frames of this camera carry together:
   committed seed loses seven groups and 50 lines in two clusters, as the real frame
   lost four of its six groups in one cluster, and four of the groups cross the
   disc, as the real groups crossed the planet. The truncated lines hold dark sky,
-  as they do on the real truncated frame. The fused answer lands 0.019 to 0.17 px
-  off over 24 draws, at high confidence on 6 of them and medium on 18. On the
-  committed seed the disc correlation, which treats the lost lines as zeros, lands
-  0.10 px off where it lands 0.019 px off without the groups, and the stars hold
-  the answer at 0.098 px either way. On four draws the answer lands 0.069 to 0.098
-  px off with all the defects, and 0.063 to 0.098 px off with any one of them
-  removed, so the scene shows that the fused answer is unaffected by the
-  truncation and the lost groups. The star-field technique returns spurious on every draw,
-  because hot pixels and cosmic rays together crowd the stars out of the sources it
-  matches. On 5 of the 16 random seeds, the committed seed among them, lost groups
-  across the disc would move the blob's centroid by more than 1% of the radius, and
-  the blob technique drops the body. On the other 11 it lands 6.8 to 8.5 px off the
-  gibbous disc without flagging it.
+  as they do on the real truncated frame. The fused answer follows the stars, 0.020
+  to 0.16 px off over 24 draws, at high confidence on 6 of them and medium on 18.
+  The disc correlation lands 0.074 to 0.16 px off, toward the Sun, where the
+  navigator's Lambert template meets the lunar-Lambert surface (see
+  :ref:`sim-photometric-laws`). On the committed seed the disc correlation, which
+  treats the lost lines as zeros, lands 0.16 px off where it lands 0.074 px off
+  without the groups, and the stars hold the answer at 0.098 to 0.100 px either
+  way. On a Lambert surface four draws landed 0.069 to 0.098 px off with all the
+  defects, and 0.063 to 0.098 px off with any one of them removed, so the scene
+  shows that the fused answer is unaffected by the truncation and the lost groups.
+  The star-field technique returns spurious on every draw, because hot pixels and
+  cosmic rays together crowd the stars out of the sources it matches. On 5 of the
+  16 random seeds, the committed seed among them, lost groups across the disc would
+  move the blob's centroid by more than 1% of the radius, and the blob technique
+  drops the body. On the other 11 it lands 8.2 to 10.7 px off the gibbous disc
+  without flagging it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.

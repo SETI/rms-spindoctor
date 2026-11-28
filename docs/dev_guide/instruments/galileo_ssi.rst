@@ -418,6 +418,11 @@ line's light at every exposure. The entry doesn't state an exclusion reason.
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.
 
+**Body statistics.** The cohort's Galileo frames are raw DN, and the photometric-law
+study reads only frames calibrated to I/F (see :ref:`sim-realism-law-study`), so their
+moons do not enter it. For this camera the body statistics (the limb peak, the rise
+width, the disc profile, and the law) are unchecked.
+
 Image library and test coverage
 ===============================
 
@@ -454,7 +459,12 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
   frames are from 1990 and read about 1.3 mag fainter than the 1992 frames the
   zero point follows, so the scene checks the short-exposure path rather than
   copying those frames.
-- ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
+- ``gossi_disc``: a moon 240 px across, offset 286 px, as bright as Europa in a
+  real frame at 27 degrees phase. The answer lands 0.30 to 0.31 px off, toward the
+  Sun, where the navigator's Lambert template meets the lunar-Lambert surface
+  (see :ref:`sim-photometric-laws`). The middle of the simulated disc reads 120 DN
+  above the sky, where the real one reads 105 DN, because the real Europa brightens
+  toward its limb more than the law does. On a Lambert surface it landed 0.17 to
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.
 
@@ -470,23 +480,26 @@ edge. The three moon-filled frames the scene follows each lost one band of 3 or 
 slices.
 
 The simulator has no model of the lossy codec, so the scene uses the generic one
-with a step of 4 DN, which leaves block edges no sharper than the inside of the
-blocks, as on the real frame the disc follows. The simulator also cannot plant
-exactly one band of slices that starts on any slice. The scene loses whole bands
-of three slices on a 24-line grid instead, a random number of them with one
-expected, so some seeds lose none and some lose two. On the committed seed one
-band crosses the middle of the disc.
+with a step of 4 DN. That step keeps the contrast across block edges inside the
+disc close to the contrast inside the blocks (1.01 to 1.05 times as large), as on
+the real frame the disc follows (1.00); a step of 8 DN raises it to 1.8 to 2.0. The
+simulator also cannot plant exactly one band of slices that starts on any slice.
+The scene loses whole bands of three slices on a 24-line grid instead, a random
+number of them with one expected, so some seeds lose none and some lose two. On the
+committed seed one band crosses the middle of the disc.
 
 The scene plants a 260 px offset and the camera's twist. The fused answer lands
-0.036 to 0.072 px off over 24 draws. The disc correlation lands 0.020 to
-0.046 px off on every draw, including the six seeds whose band of lost slices
-crosses the disc, so the slices leave the answer where it is. On one draw, whose
-band covers the bottom limb, the limb fit flags its answer. The fused answer
-rests on the disc correlation alone, at low confidence; the other 23 draws are
-at medium. The blob technique lands up to 6 px off without flagging it when a
-band crosses the disc. The twist moves the answer by at most 0.02 px. The
-compression is realistic but moves the answer by at most 0.01 px, so the scene
-shows that the navigator is unaffected by it.
+0.18 to 0.24 px off over 24 draws, all at medium confidence, toward the Sun, where
+the navigator's Lambert template meets the lunar-Lambert surface (see
+:ref:`sim-photometric-laws`). The disc correlation lands 0.22 to 0.25 px off and the
+limb fit 0.15 to 0.28 px off. The blob technique lands 2.7 to 7.3 px off without
+flagging it. On a Lambert surface the fused answer landed 0.036 to 0.072 px off and
+the disc correlation 0.020 to 0.046 px off on every draw, including the six seeds
+whose band of lost slices crosses the disc, so the slices leave the answer where it
+is; there the blob landed 0.14 to 6.2 px off, and 0.18 to 0.22 px off without the
+lost slices. The twist moved the fused answer by at most 0.02 px. The compression is
+realistic but moved it by at most 0.01 px, so the scene shows that the navigator is
+unaffected by it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 star limit: its value at 1 s through CLEAR at 10K, 2.5 mag per factor of ten in

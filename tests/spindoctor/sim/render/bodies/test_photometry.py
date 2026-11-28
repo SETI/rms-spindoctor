@@ -4,13 +4,15 @@ Each law is asserted against its closed form at known (mu0, mu, k) values,
 the lunar-Lambert blend against its endpoints (pure Lommel-Seeliger at
 phase 0, pure Lambert once the McEwen cubic reaches 0), Lommel-Seeliger's
 flat disc at phase 0 against Lambert's limb darkening, and the opposition
-surge against its documented normalized-exponential form.
+surge against its documented normalized-exponential form.  A scene body that
+leaves the law out shades with lunar-Lambert.
 """
 
 import math
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
 from spindoctor.sim.render.bodies.photometry import (
     MINNAERT_CEILING,
@@ -18,6 +20,7 @@ from spindoctor.sim.render.bodies.photometry import (
     shade_surface,
     surge_factor,
 )
+from spindoctor.sim.render.driver import render_scene
 
 
 def _one(value: float) -> np.ndarray:
@@ -98,7 +101,7 @@ def test_lunar_lambert_zero_phase_endpoint_is_lommel_seeliger() -> None:
 
 
 def test_lunar_lambert_high_phase_endpoint_is_lambert() -> None:
-    """Past the cubic's zero (~119 deg) the blend is 0: pure Lambert."""
+    """Past the cubic's zero (~104 deg) the blend is 0: pure Lambert."""
     mu0 = np.linspace(0.05, 1.0, 10)
     mu = np.linspace(1.0, 0.1, 10)
     np.testing.assert_allclose(
@@ -179,3 +182,12 @@ def test_incidence_cosines_match_the_lambert_renderer() -> None:
     interior = (cos_i > 0.02) & (cos_i < 0.99)
     assert interior.any()
     np.testing.assert_array_equal(cos_i[interior], lambert[interior])
+
+
+def test_a_body_without_a_law_shades_lunar_lambert() -> None:
+    """A scene body that leaves the law out renders exactly as a lunar-Lambert body."""
+    body = disc_body(32.0, 32.0, 20.0, illumination_angle=40.0, phase_angle=30.0)
+    stated = {**body, 'photometric_law': 'lunar_lambert'}
+    absent_image, _ = render_scene(frame_scene(noise=quiet_noise(), bodies=[body]))
+    stated_image, _ = render_scene(frame_scene(noise=quiet_noise(), bodies=[stated]))
+    np.testing.assert_array_equal(absent_image, stated_image)

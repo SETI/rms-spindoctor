@@ -10,11 +10,13 @@ exposure_sec: 1.0
 # the sharp circular 'false crater' that disc correlation and blob
 # techniques can lock onto.  All texture keys are truth-side: the navigator
 # correlates its smooth Lambert template against the banded disc.  Measured
-# behavior: the disc correlation and the limb fit both stay accurate (fused
-# offset within ~0.12 px of the planted value), so this scene is the
-# regression tripwire for the false-crater confound: a correlator that
-# starts chasing the shadow or the storm moves the baseline and fails
-# loudly.
+# behavior: neither the disc correlation nor the limb fit chases the shadow or the
+# storm, so this scene is the regression tripwire for the false-crater confound: a
+# correlator that starts chasing the shadow or the storm moves the baseline and
+# fails loudly.  The disc shades with the default lunar-Lambert law, and the
+# Lambert template pulls the disc correlation 0.47 px and the limb fit 0.16 to
+# 0.19 px toward the Sun (#1110), so the fused answer lands 0.39 px off; on
+# a Lambert surface it landed within 0.09 px.
 bodies:
   - name: JOVIAN
     shape_model: ellipsoid
@@ -53,3 +55,8 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
+  # The body shades with the default lunar-Lambert law, and the navigator's
+  # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
+  # fused error over the seeds, measured as sim_truth.py describes.
+  known_offset_error_px: 0.3885
+  known_offset_error_tol_px: 0.0545

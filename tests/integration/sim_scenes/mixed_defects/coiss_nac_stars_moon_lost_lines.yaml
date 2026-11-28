@@ -63,33 +63,36 @@ exposure_sec: 1.0
 # left.  The roll is the camera's measured twist, +0.0115 deg, planted with roll
 # fitting off as the camera ships.
 #
-# The fused answer lands 0.019 to 0.17 px off over 24 distinct draws, carried by
-# the star refinement (0.021 to 0.17 px off) and the disc correlation (0.019 to
-# 0.10 px).  The worst draw, random seed 909, lands 0.17 px off with its lost
-# groups or without them, where the star refinement lands 0.17 px off.  On the
-# committed seed four groups cross the disc and the disc correlation lands 0.10 px
-# off, against 0.019 px without the groups: it correlates the lost lines as zeros
-# (#1164).  The stars hold the fused answer at 0.098 px off with the groups or
-# without them.  The tier is high on 6 of the 24 draws: random seeds 505, 808,
-# 1010, and 1212, and noise seeds 505 and 808, at a fused confidence of 0.88 to
-# 0.93, against 0.77 to 0.85 on the rest.  On the committed seed and seeds 101 to
-# 303, which land 0.069 to 0.098 px off, removing any one defect (the truncation,
-# the lost groups, the smear, the hot pixels, or the cosmic rays) leaves the fused
-# answer 0.063 to 0.098 px off.  The truncation and the lost groups are realistic
-# but do not move the fused answer, so the scene shows the fused answer
-# unaffected by them.
+# The fused answer lands 0.020 to 0.16 px off over 24 distinct draws, carried by
+# the star refinement (0.021 to 0.17 px off).  The disc correlation lands 0.074 to
+# 0.16 px off, pulled toward the Sun by the Lambert template's bias on the
+# lunar-Lambert body (#1110).  The worst draw, random seed 909, lands 0.16 px off
+# with its lost groups or without them, where the star refinement lands 0.17 px
+# off.  On the committed seed four groups cross the disc and the disc correlation
+# lands 0.16 px off, against 0.074 px without the groups: it correlates the lost
+# lines as zeros (#1164).  The stars hold the fused answer at 0.098 px off with the
+# groups and 0.100 px without them.  The tier is high on 6 of the 24 draws: random
+# seeds 505, 808, 1010, and 1212, and noise seeds 505 and 808, at a fused
+# confidence of 0.88 to 0.94, against 0.77 to 0.85 on the rest.  On the committed
+# seed and seeds 101 to 303 the fused answer lands 0.071 to 0.098 px off.  On a
+# Lambert surface those draws landed 0.069 to 0.098 px off, and removing any one
+# defect (the truncation, the lost groups, the smear, the hot pixels, or the
+# cosmic rays) left the fused answer 0.063 to 0.098 px off.  The truncation and
+# the lost groups are realistic but did not move the fused answer, so the scene
+# shows the fused answer unaffected by them.
 #
 # StarFieldFromCatalogNav returns spurious on every draw, which is #1146: the hot
 # pixels and cosmic rays together crowd the stars out of the 30 sources it
-# matches.  With both removed it navigates on the committed seed and seeds 101 to
-# 303 (0.059 to 0.11 px off); with the hot pixels removed alone it stays spurious,
-# and with the cosmic rays removed alone it navigates on the committed seed only.
-# StarUniqueMatchNav returns spurious on 3 of the 24 draws, random seeds 505 and
-# 808 and noise seed 808.  BodyBlobNav drops the body where lost
-# groups across the disc would move its centroid by more than 1% of the radius: it
-# returns spurious on the committed seed and on random seeds 707, 1010, 1212, and
-# 1414, and lands 6.8 to 8.5 px off the gibbous disc without flagging it on the other
-# 11 random seeds (#975, #1207).  sim_truth has no band for it.
+# matches.  On a Lambert surface, with both removed it navigated on the committed
+# seed and seeds 101 to 303 (0.059 to 0.11 px off); with the hot pixels removed
+# alone it stayed spurious, and with the cosmic rays removed alone it navigated
+# on the committed seed only.  StarUniqueMatchNav returns spurious on 3 of the 24
+# draws, random seeds 505 and 808 and noise seed 808.  BodyBlobNav drops the body
+# where lost groups across the disc would move its centroid by more than 1% of the
+# radius: it returns spurious on the committed seed and its 8 noise draws and on
+# random seeds 707, 1010, 1212, and 1414, and lands 8.2 to 10.7 px off the gibbous
+# disc without flagging it on the other 11 random seeds (#975, #1207).  sim_truth has
+# no band for it.
 artifacts:
   instrument_defaults: true
   truncated_frame: {probability: 1.0, lines: 41, from: bottom}

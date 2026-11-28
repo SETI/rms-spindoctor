@@ -43,6 +43,8 @@ def _scene() -> dict[str, Any]:
         'semi_b_px': 12.0,
         'semi_c_px': 12.0,
         'crater_fill': 0.3,
+        # The body is fully lit, where craters show only under the Lambert law.
+        'photometric_law': 'lambert',
     }
     return frame_scene(
         instrument='generic', seed=42, sky_counts={'density_factor': 500.0}, bodies=[body]

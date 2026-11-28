@@ -88,7 +88,7 @@ def test_settings_generic_defaults_to_raw_dn() -> None:
 
 
 def _lit_body_scene(instrument: str, *, size: int = 64) -> dict[str, Any]:
-    """A scene with a single lit body for the given instrument."""
+    """A scene with a single lit Lambert body, whose brightest value is 1."""
     return frame_scene(
         instrument=instrument,
         size=size,
@@ -102,6 +102,7 @@ def _lit_body_scene(instrument: str, *, size: int = 64) -> dict[str, Any]:
                 'semi_c_px': size * 0.25,
                 'illumination_angle': 20.0,
                 'phase_angle': 30.0,
+                'photometric_law': 'lambert',
             }
         ],
     )

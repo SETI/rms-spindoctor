@@ -41,7 +41,11 @@ from spindoctor.sim.render.bodies.placement import (
     finish_unseen_body,
 )
 from spindoctor.sim.render.bodies.relief import synthesize_relief_field
-from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
+from spindoctor.sim.render.bodies.spec import (
+    BodySpec,
+    body_identity_seed,
+    scale_by_normal_albedo,
+)
 from spindoctor.sim.render.bodies.texture import albedo_spec_from_params
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.ellipsoid import outline_half_extents
@@ -481,7 +485,8 @@ def _apply_body_atmosphere(
 ) -> tuple[NDArrayFloatType, HaloScreen | None]:
     """Add a body's haze layer to its reference-centered drawing.
 
-    The exponential haze layer evaluates over the reference-centered disc after
+    The surface is first scaled by the body's normal albedo, which the haze does not
+    share.  The exponential haze layer evaluates over the reference-centered disc after
     shading.  The on-disc haze joins the opaque disc paint, and the above-limb glow
     rides along as a translucent halo screen the radiance stage composites.  A body
     that has no ``atmosphere`` block never enters the haze code and renders
@@ -495,15 +500,16 @@ def _apply_body_atmosphere(
         center: The reference center (v, u) on the canvas, where the body was drawn.
 
     Returns:
-        The body's opaque intensity and its halo screen, or the drawing's own
+        The body's opaque intensity and its halo screen, or its scaled surface
         intensity and None for a body without an atmosphere.
     """
+    surface = scale_by_normal_albedo(ellipsoid_render.intensity, spec)
     if atmosphere_spec is None:
-        return ellipsoid_render.intensity, None
+        return surface, None
     # apply_atmosphere returns fresh arrays, so the shared render cache the
     # drawing may come from is never mutated.
     layers = apply_atmosphere(
-        ellipsoid_render.intensity,
+        surface,
         atmosphere_spec,
         center_v=center[0],
         center_u=center[1],

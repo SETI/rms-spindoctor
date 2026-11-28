@@ -52,6 +52,7 @@ from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
+from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAW_DEFAULT
 
 __all__ = [
     'LimbBiasSample',
@@ -367,7 +368,9 @@ def renderer_centroid_offset(
     )
 
 
-def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
+def ridge_inset_phase_zero(
+    *, diameter_px: float, size_px: int = 260, photometric_law: str = PHOTOMETRIC_LAW_DEFAULT
+) -> float:
     """Measure how far the brightness gradient ridge sits inside the limb.
 
     Renders a fully-lit sphere and, along a horizontal scan through the
@@ -381,6 +384,8 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
     Parameters:
         diameter_px: Body diameter in pixels.
         size_px: Square image side in pixels.
+        photometric_law: The law the sphere is shaded with, by default the scene
+            default, lunar-Lambert.
 
     Returns:
         The inset in pixels (geometric radius minus ridge radius) on the lit
@@ -397,6 +402,7 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
             illumination_angle=90.0,
             phase_angle=0.0,
             anti_aliasing=1.0,
+            photometric_law=photometric_law,
         ),
     )
     row = img[round(center - 0.5)].astype(np.float64)

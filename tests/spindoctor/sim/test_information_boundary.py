@@ -72,6 +72,7 @@ _TRUTH_SAMPLES: dict[str, Any] = {
     'bodies.limb_relief_corr_deg': 12.0,
     'bodies.photometric_law': 'lommel_seeliger',
     'bodies.minnaert_k': 0.6,
+    'bodies.normal_albedo': 0.45,
     'bodies.opposition_surge': {'amplitude': 0.5, 'width_deg': 5.0},
     'bodies.albedo_texture': {
         'rms': 0.15,
@@ -211,6 +212,7 @@ def _truth_exercising_scene() -> dict[str, Any]:
                 'limb_relief_corr_deg': _TRUTH_SAMPLES['bodies.limb_relief_corr_deg'],
                 'photometric_law': _TRUTH_SAMPLES['bodies.photometric_law'],
                 'minnaert_k': _TRUTH_SAMPLES['bodies.minnaert_k'],
+                'normal_albedo': _TRUTH_SAMPLES['bodies.normal_albedo'],
                 'opposition_surge': dict(_TRUTH_SAMPLES['bodies.opposition_surge']),
                 'albedo_texture': dict(_TRUTH_SAMPLES['bodies.albedo_texture']),
                 'disc_texture': dict(_TRUTH_SAMPLES['bodies.disc_texture']),

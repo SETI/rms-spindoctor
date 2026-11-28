@@ -21,7 +21,11 @@ _RENDERS = {'floor': {}, 'instrument_defaults': {'artifacts': {'instrument_defau
 
 
 def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
-    """A 128 x 128 frame whose lit disc leaves about two thirds of it dark sky."""
+    """A 128 x 128 frame whose lit disc leaves about two thirds of it dark sky.
+
+    The disc is Lambert, whose limb is dim, so little of its light spreads into the sky
+    the tests read.
+    """
     scene = frame_scene(
         instrument=instrument,
         size=128,
@@ -29,7 +33,15 @@ def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
         offset_v=3.0,
         offset_u=-2.0,
         bodies=[
-            disc_body(64.0, 64.0, 43.0, name='RHEA', illumination_angle=18.0, phase_angle=30.0)
+            disc_body(
+                64.0,
+                64.0,
+                43.0,
+                name='RHEA',
+                illumination_angle=18.0,
+                phase_angle=30.0,
+                photometric_law='lambert',
+            )
         ],
     )
     scene.update(extra)

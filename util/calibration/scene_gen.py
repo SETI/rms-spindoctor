@@ -162,8 +162,10 @@ def _base(rng: random.Random, *, size: int) -> dict[str, Any]:
 # against a renderer regime no catalog scene uses.  Each body draws only
 # the axes its shape model renders: the ellipsoid takes the photometric,
 # surge, relief, and albedo axes, and the mesh takes the relief, shading,
-# and pose-scatter axes.
-_BODY_NONLAMBERT_FRAC = 0.40  # ellipsoid: photometric_law lommel_seeliger / minnaert
+# and pose-scatter axes.  An ellipsoid that states no law shades with the
+# scene default, lunar-Lambert, so the clean class carries the
+# photometric mismatch a real icy moon presents (#842).
+_BODY_NONLAMBERT_FRAC = 0.40  # ellipsoid: states lommel_seeliger or minnaert
 _BODY_MINNAERT_FRAC = 0.15  # of which: minnaert with a drawn k
 _BODY_SURGE_FRAC = 0.25  # ellipsoid: opposition_surge (matters at low phase)
 _BODY_LIMB_RELIEF_FRAC = 0.40  # both: limb_relief_rms / limb_relief_corr_deg

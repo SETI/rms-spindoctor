@@ -13,15 +13,16 @@ exposure_sec: 0.3
 # correctly sized planet of the whole-system frames, so the shadows the simulator
 # does not draw between rings and planet (#896) would cover only a small part of it.
 #
-# RingEdgeNav carries the fused answer and lands 0.03 to 0.10 px off over the 16
-# draws, while it reports a sigma of 0.04 to 0.05 px; the fused error is 0.9 to 2.6 of
-# its reported sigmas.  The planet adds to the error: on the committed seed, removing
-# it lowers the ring error from 0.10 to 0.08 px.  The simulated rings are about 4
-# times too faint against Saturn (#895).
+# RingEdgeNav carries the fused answer and lands 0.02 to 0.09 px off over the 16
+# draws, 0.5 to 2.2 of its reported sigmas.  The simulated rings are about 4 times
+# too faint against Saturn (#895).
 #
-# BodyLimbNav lands 0.12 to 0.29 px off and BodyDiscCorrelateNav 0.10 to 0.11 px off,
-# both with wider sigmas.  BodyBlobNav lands 6.86 to 6.88 px off at confidence 0 and
-# does not flag it (#975), and RingAnnulusNav flags its answer spurious on every draw.
+# The planet shades with the default lunar-Lambert law, which the navigator's
+# Lambert template does not match (#1110): BodyDiscCorrelateNav lands 0.47 to
+# 0.48 px off and BodyLimbNav 0.12 to 0.23 px off, both with wider sigmas.
+# BodyBlobNav lands 8.63 to 8.64 px off at confidence 0 and does not flag it (#975),
+# and RingAnnulusNav flags its answer spurious on every draw.  The frame is a
+# high-tier success on every draw.
 #
 # The pointing error is a WAC-sized one, pointing up and to the right, and the twist
 # is the WAC's measured -0.0115 degrees, unfit, as the camera ships.

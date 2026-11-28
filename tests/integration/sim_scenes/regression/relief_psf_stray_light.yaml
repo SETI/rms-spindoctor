@@ -18,31 +18,29 @@ exposure_sec: 1.0
 # navigator fits its smooth sharp Lambert template against the blurred
 # ragged limb and the relief's slope shading over a sloped background.
 # Measured behavior: all three body techniques survive the blur and the
-# sloped background, but the fused offset is (1.54, -1.94) against the
-# planted (2.37, -1.62), a miss of 0.89 px, mostly in v.  The limb fit
-# lands at (1.67, -1.68), about 0.70 px from the planted value, and over the 16
-# noise draws below it lands 0.66 to 0.70 px away.  It was 0.27 px while the
-# predicted limb ran along the whole outline, unlit part included, and the night
-# side glowed at 1% of full brightness (#894, #1056); it now fits only the lit
-# limb, where the brightness gradient just inside the ragged limb draws it.  Each
-# pixel reads the terrain where its line of sight meets the relief (#875), which
-# sets the shading near the limb that both the limb fit and the correlation
-# follow.  The disc correlation reports (1.54, -1.94).  Its high-pass refinement
-# does not stop at a window edge: that surface's own maximum lies 0.95 px from
-# the planted offset, because the smooth template doesn't carry the relief
-# shading the frame does (#1050).  The
-# ensemble fuses the limb fit and the correlation as one witness and takes
-# the correlation's offset, so the scene pins a medium-confidence success
-# whose error is the correlation's.
+# sloped background, but the fused offset is (1.38, -1.49) against the
+# planted (2.37, -1.62), a miss of 1.00 px, mostly in v, toward the Sun.  The
+# limb fit lands 0.84 to 0.89 px from the planted value over the 16 noise draws
+# below.  The body shades with the default lunar-Lambert law, and the
+# navigator's Lambert template pulls both answers toward the Sun (#1110); on a
+# Lambert surface the limb fit landed 0.66 to 0.70 px off.  Each pixel reads the
+# terrain where its line of sight meets the relief (#875), which sets the shading
+# near the limb that both the limb fit and the correlation follow.  The disc
+# correlation lands 0.99 to 1.00 px off.  Its high-pass refinement does not stop at
+# a window edge: the surface's own maximum lies that far off, because the smooth
+# Lambert template carries neither the relief shading the frame does (#1050) nor
+# the lunar-Lambert limb.  The ensemble fuses the limb fit and the correlation as one
+# witness and takes the correlation's offset, so the scene pins a
+# medium-confidence success whose error is the correlation's.
 # Known error: over 16 draws of the detector noise alone (the committed draw
 # and noise_seed 101, 202, ..., 1515), which keep this scene's limb relief,
-# the fused error runs 0.882 to 0.900 px (spread 0.017 px).  Each end of the
+# the fused error runs 0.994 to 1.003 px (spread 0.009 px).  Each end of the
 # band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px outside,
-# giving [0.832, 0.950] px.  A worse miss fails, and so does a fix that brings
-# the error under 0.832 px.  The relief decides the error: over 16 values of
-# random_seed, which redraw the relief too, it runs 0.173 to 2.130 px on the 15
-# that succeed (random_seed 909 ends conflicted), because where the high-pass
-# maximum lies depends on the relief drawn (#1050).
+# giving [0.944, 1.054] px.  A worse miss fails, and so does a fix that brings
+# the error under 0.944 px.  The relief decides the error: over 16 values of
+# random_seed (the committed one and 101 to 1515), which redraw the relief too, it
+# runs 0.48 to 2.24 px, every draw a success, because where the high-pass maximum
+# lies depends on the relief drawn (#1050).
 bodies:
   - name: RUGGED
     shape_model: ellipsoid
@@ -73,5 +71,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.891
-  known_offset_error_tol_px: 0.059
+  known_offset_error_px: 0.999
+  known_offset_error_tol_px: 0.055

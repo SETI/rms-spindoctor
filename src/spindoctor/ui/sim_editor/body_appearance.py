@@ -34,7 +34,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAWS
+from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAW_DEFAULT, PHOTOMETRIC_LAWS
 from spindoctor.sim.render.bodies.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.bodies.texture import (
@@ -46,9 +46,9 @@ from spindoctor.ui.sim_editor.base import SimEditorBase
 from spindoctor.ui.sim_editor.body_mesh_keys import sync_mesh_refused_widgets
 from spindoctor.ui.sim_editor.widgets import as_map, make_dspin
 
-# The photometric-law vocabulary, Lambert first so the combo opens on the
-# navigator-matched default when a scene enables the group without a law.
-_LAW_ORDER = ('lambert', 'lommel_seeliger', 'minnaert', 'lunar_lambert')
+# The photometric-law vocabulary, the scene default (lunar-Lambert) first, so the
+# combo opens on it when a scene enables the group without a law.
+_LAW_ORDER = ('lunar_lambert', 'lambert', 'lommel_seeliger', 'minnaert')
 _LAWS = tuple(law for law in _LAW_ORDER if law in PHOTOMETRIC_LAWS)
 
 # The values the surge and pose-scatter groups show while the scene leaves their
@@ -230,7 +230,7 @@ class BodyAppearanceMixin(SimEditorBase):
             return
         w = self._body_tab_widget(idx)
         if checked:
-            law = w.photometry_law_combo.currentText() if w is not None else 'lambert'  # type: ignore[attr-defined]
+            law = w.photometry_law_combo.currentText() if w is not None else PHOTOMETRIC_LAW_DEFAULT  # type: ignore[attr-defined]
             body['photometric_law'] = law
             if law == 'minnaert' and w is not None:
                 body['minnaert_k'] = float(w.minnaert_k_spin.value())  # type: ignore[attr-defined]

@@ -16,13 +16,17 @@ describes the body to the navigator, or ``nav_override``, which holds the values
 the navigator is given in place of the truth, so the spec leaves both out.
 
 :func:`body_identity_seed` chooses the seed that every random stream of a body,
-such as its craters, its relief, or its albedo noise, derives from.
+such as its craters, its relief, or its albedo noise, derives from, and
+:func:`scale_by_normal_albedo` scales a body's shaded surface by its normal albedo.
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
+from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAW_DEFAULT
 from spindoctor.sim.render.bodies.texture import (
     DiscTextureSpec,
     TransitSpec,
@@ -32,14 +36,17 @@ from spindoctor.sim.render.bodies.texture import (
 from spindoctor.sim.scene.fields import default_body_name, scene_value
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.mesh import MeshBodySpec, mesh_spec_from_params
+from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'CRATER_MAX_RADIUS_DEFAULT',
     'CRATER_MIN_RADIUS_DEFAULT',
+    'NORMAL_ALBEDO_DEFAULT',
     'BodySpec',
     'body_identity_seed',
     'body_semi_axes_px',
     'body_spec_from_params',
+    'scale_by_normal_albedo',
 ]
 
 CRATER_MIN_RADIUS_DEFAULT: float = 0.05
@@ -50,11 +57,13 @@ CRATER_MAX_RADIUS_DEFAULT: float = 0.25
 """The largest crater radius a body draws when it leaves the key out, as a
 fraction of semi-axis a."""
 
+NORMAL_ALBEDO_DEFAULT: float = 1.0
+"""The normal albedo a body takes when it leaves the key out: a white surface."""
+
 _CRATER_POWER_LAW_EXPONENT_DEFAULT = 3.0
 _CRATER_RELIEF_SCALE_DEFAULT = 0.6
 _ANTI_ALIASING_DEFAULT = 1.0
 _LIMB_RELIEF_CORR_DEG_DEFAULT = 15.0
-_PHOTOMETRIC_LAW_DEFAULT = 'lambert'
 _MINNAERT_K_DEFAULT = 0.5
 _SURGE_WIDTH_DEG_DEFAULT = 6.0
 
@@ -106,6 +115,9 @@ class BodySpec:
         limb_relief_corr_deg: The limb-relief correlation length, in degrees.
         photometric_law: The surface scattering law.
         minnaert_k: The Minnaert exponent.
+        normal_albedo: The surface's normal albedo, its I/F when lit and viewed
+            head-on at zero phase.  It multiplies the law's value, which is 1
+            there.
         surge_amplitude: The ``opposition_surge`` block's ``amplitude``.  Zero
             turns the surge off.
         surge_width_deg: The ``opposition_surge`` block's ``width_deg``, in
@@ -150,6 +162,7 @@ class BodySpec:
     limb_relief_corr_deg: float
     photometric_law: str
     minnaert_k: float
+    normal_albedo: float
     surge_amplitude: float
     surge_width_deg: float
     shading: str
@@ -241,8 +254,9 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         limb_relief_corr_deg=float(
             scene_value(body_params, 'limb_relief_corr_deg', _LIMB_RELIEF_CORR_DEG_DEFAULT)
         ),
-        photometric_law=str(scene_value(body_params, 'photometric_law', _PHOTOMETRIC_LAW_DEFAULT)),
+        photometric_law=str(scene_value(body_params, 'photometric_law', PHOTOMETRIC_LAW_DEFAULT)),
         minnaert_k=float(scene_value(body_params, 'minnaert_k', _MINNAERT_K_DEFAULT)),
+        normal_albedo=float(scene_value(body_params, 'normal_albedo', NORMAL_ALBEDO_DEFAULT)),
         surge_amplitude=float(scene_value(surge, 'amplitude', 0.0)),
         surge_width_deg=float(scene_value(surge, 'width_deg', _SURGE_WIDTH_DEG_DEFAULT)),
         shading=str(scene_value(body_params, 'shading', 'flat')),
@@ -271,3 +285,20 @@ def body_identity_seed(body_streams_seed: int, body: BodySpec, body_index: int) 
         The body's identity seed, below 2**32.
     """
     return derive_effect_seed(body_streams_seed, f'body:{body_index}:{body.name.upper()}')
+
+
+def scale_by_normal_albedo(intensity: NDArrayFloatType, body: BodySpec) -> NDArrayFloatType:
+    """A body's shaded surface scaled by its normal albedo.
+
+    Parameters:
+        intensity: The surface as the photometric law shades it, 1 where the surface
+            is lit and viewed head-on at zero phase.  It is only read.
+        body: The body (its ``normal_albedo`` is read).
+
+    Returns:
+        ``intensity`` itself when the normal albedo is 1, so a body that leaves the key
+        out renders bit for bit as an unscaled one; otherwise a new array.
+    """
+    if body.normal_albedo == 1.0:
+        return intensity
+    return np.asarray(intensity * body.normal_albedo, dtype=np.float64)

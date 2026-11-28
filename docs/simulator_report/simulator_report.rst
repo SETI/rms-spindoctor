@@ -8,21 +8,24 @@ navigation responds as a single scene parameter is swept. It is a standalone
 chapter, separate from the user and developer guides, and is regenerable on
 demand from the simulator scene catalog and sweep harness.
 
-**What these numbers measure.** Every recovery error in this chapter is measured
-on simulated frames, mostly Cassini NAC frames with a few Voyager ISS ones, and
-none is a real-frame accuracy.  A recovery on a clean frame is a
-self-consistency floor; a sweep that plants a deliberate mismatch (a shape, a
-ring orbit, a PSF, a haze altitude) measures sensitivity to that one mismatch.
-On a simulated frame the navigator's body, ring, and
-star models are simulated counterparts that share the renderer's geometry,
-shading, point-spread function, ring projection, and star flux; the production
-models that navigate real frames never run.  A recovery therefore says how
-tightly a technique converges on a frame drawn by its own kind of model, and
-how that changes as one parameter moves.  A simulated number becomes a
-statement about real frames only for a class of frame where simulated error
-has been shown to predict real error, and no such comparison has been made
-yet.  The confidence values the navigator reports are provisional: their
-coefficients and tier boundaries were fitted on one simulated campaign.
+**What these numbers measure.** Every recovery error in this chapter is measured on
+simulated frames, mostly Cassini NAC frames with a few Voyager ISS ones, and none is a
+real-frame accuracy. A recovery on a clean frame is a self-consistency floor, except where
+a body shades differently from the navigator's template (see below); a sweep that plants a
+deliberate mismatch (a shape, a ring orbit, a PSF, a haze altitude) measures sensitivity
+to that one mismatch. On a simulated frame the navigator's body, ring, and star models are
+simulated counterparts that share the renderer's geometry, point-spread function, ring
+projection, and star flux; the production models that navigate real frames never run. They
+do not share its body shading. A body renders with the lunar-Lambert law unless its
+scene states another, and the navigator's body template shades with the Lambert law. Below
+about 104 degrees phase the two laws differ, so there a clean recovery measures the
+template's bias as well as the floor.
+A recovery therefore says how tightly a technique converges on a frame drawn by its own
+kind of model, and how that changes as one parameter moves. A simulated number becomes a
+statement about real frames only for a class of frame where simulated error has been shown
+to predict real error, and no such comparison has been made yet. The confidence values the
+navigator reports are provisional: their coefficients and tier boundaries were fitted on
+one simulated campaign.
 
 The numbers below are representative measurements from the committed scene
 catalog and sweeps. The technique solvers carry sub-millipixel floating-point
@@ -178,7 +181,7 @@ close image match doesn't show that simulated navigation error predicts real
 error.  The match also has no threshold for how close is close enough, and it
 was tuned on the same frames that report it.
 
-The realism runner (``python -m tests.integration.sim_realism``; see
+The realism runner (``python -m util.sim_realism.sim_realism``; see
 :ref:`sim-realism-match` for the machinery) compares the curated real-image
 library against matched simulated frames -- one per real frame, same
 instrument signal chain, same exposure, same content class -- on seven
@@ -188,19 +191,17 @@ quantile-clipped samples, normalized by the real distribution's IQR (a
 value of 1.0 means the two distributions are displaced by about one real
 IQR).  The numbers below are read against each cohort's support.
 
-A regression check holds the simulator to the committed record.  It reruns the
-match on the two LORRI frames, which takes seconds, and compares selected values
-with the record.  For each statistic whose support is *limited* or *supported*
-(defined below), it holds the normalized W1, the real median, and the
-simulated median, each when the record gives a number.  For each curve with that support, it holds
-the curve's normalized W1.  On LORRI that is 19 values.  It doesn't hold the raw
-W1 distances, the real IQRs, or the frame and sample counts, so a change that
-moves only those goes unnoticed.  Each held value must stay within a band: the larger of 3 times its run-to-run spread over 10 runs and 2%
-of its value.  The bands are two-sided, because a better-looking number can come
-from a worse simulator.  A second test requires the record and the band table to
-agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``dcd5fd83`` on
-2026-11-25.
+The realism match runs only when someone runs it. It needs the image library's
+holdings, SPICE kernels, and star catalogs and takes about an hour for the whole
+library, so neither CI nor the test suite runs it. Its committed record is the
+evidence for the numbers below. The record stores the commit of the code that made it.
+The current record was made at commit ``a36bcdc0`` on 2026-11-28. A separate tool
+measures how far each statistic moves between runs on unchanged code (see
+:ref:`sim-realism-record`), so that a later run can be read against that spread.
+For each statistic whose support is *limited* or *supported* (defined below) it
+measures the normalized W1, the real median, and the simulated median, each when the
+record gives a number, and for each curve with that support the curve's normalized W1.
+On LORRI that is 19 values. The spread of every one of them was 0 over 10 runs.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -208,7 +209,7 @@ the navigator's own outputs, and tuning the image side until the
 navigator's diagnostics agree would re-admit circularity through parameter
 fitting.
 
-Cohort support (2026-11-25 record, 75 frames).  A label counts the frames that
+Cohort support (2026-11-27 record, 75 frames).  A label counts the frames that
 contribute to the figure of merit on each side, real and simulated, and the
 smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
 *supported* for 8 or more.
@@ -364,7 +365,7 @@ rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
 entries under ``sim/instruments/configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
-(2026-11-25; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-27; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -382,19 +383,19 @@ real IQR):
      - 10.0
      - 0.73 [#table]_
      - 4585
-     - 7407
+     - 7344
    * - sky level above floor (FOM 1)
      - 3.3e-4 I/F
      - 13.9
      - 1.60 [#tail]_
      - 4585
-     - 7407
+     - 7344
    * - noise at signal (FOM 1)
      - 2.8e-4 I/F
      - 13.8
-     - 1.61
+     - 1.62
      - 15700
-     - 33377
+     - 33288
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
@@ -408,11 +409,11 @@ real IQR):
      - 25
      - 9
    * - limb rise width, co-populated strata (FOM 3)
-     - 2.54 px
+     - 2.62 px
      - -- [#copop]_
-     - 0.54
-     - 3742
-     - 3489
+     - 0.61
+     - 3247
+     - 2912
    * - ring-edge rise width (FOM 4)
      - 3.36 px
      - 0.47
@@ -428,13 +429,13 @@ real IQR):
    * - p99 - p50 stretch, 0.05-0.5 s (FOM 5)
      - 0.104 I/F
      - 0.89
-     - 0.26
+     - 0.14
      - 27
      - 27
    * - spike fraction (FOM 6)
      - 1.1e-4
      - 11.0
-     - 0.83
+     - 0.82
      - 58
      - 58
 
@@ -475,7 +476,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-The FOM 3 strata behind the pooled number (2026-11-25; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-27; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -489,53 +490,250 @@ The FOM 3 strata behind the pooled number (2026-11-25; p = phase bin
      - n real
      - n sim
    * - p0 r0
-     - 0.83
+     - 0.63
      - 2.87
-     - 2.13
+     - 2.35
      - 522
-     - 890
+     - 534
    * - p0 r1
-     - 1.26
+     - 1.04
      - 2.75
-     - 2.23
+     - 2.33
      - 400
      - 400
    * - p0 r2
-     - 1.48
+     - 1.34
      - 3.09
-     - 2.25
+     - 2.34
      - 733
-     - 782
+     - 724
    * - p1 r0
-     - 0.78
-     - 2.18
-     - 2.08
-     - 435
-     - 246
+     - 0.41
+     - 2.19
+     - 2.14
+     - 226
+     - 228
    * - p1 r1
-     - 0.56
-     - 2.24
-     - 2.13
-     - 909
-     - 771
+     - 0.58
+     - 2.29
+     - 2.17
+     - 623
+     - 623
    * - p1 r2
-     - 0.52
+     - 0.72
      - 2.58
-     - 2.30
+     - 2.18
      - 525
      - 191
    * - p2 r0
-     - 0.46
+     - 1.79
      - 1.75
-     - 1.87
+     - 1.36
      - 70
-     - 61
+     - 65
    * - p2 r1
-     - 2.46
+     - 0.99
      - 1.71
-     - 2.61
+     - 1.49
      - 148
-     - 148
+     - 147
+
+The record also holds the limb gradient-peak comparison
+(:ref:`sim-realism-limb-peak`), which measures how far each limb's steepest
+brightness fall lies from the body's true silhouette.  It gives these NAC bins
+(offsets in pixels, negative inside the silhouette; the band is set from the real
+limbs alone, and only a bin with at least 3 real limbs has one).  Each frame contributes the limb
+of the body its matched frame renders, and only when both frames measured it:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 14 14 14 14 14 14
+
+   * - Stratum
+     - real median
+     - sim median
+     - band
+     - n real
+     - n sim
+     - within
+   * - p0 r0
+     - +0.04
+     - +0.02
+     - --
+     - 2
+     - 2
+     - --
+   * - p0 r1
+     - +0.82
+     - +0.05
+     - --
+     - 2
+     - 2
+     - --
+   * - p0 r2
+     - +0.83
+     - +0.01
+     - 0.58
+     - 3
+     - 3
+     - no
+   * - p1 r0
+     - -0.00
+     - +0.11
+     - --
+     - 2
+     - 2
+     - --
+   * - p1 r1
+     - +0.09
+     - +0.09
+     - 0.10
+     - 3
+     - 3
+     - yes
+   * - p1 r2
+     - -0.65
+     - +0.08
+     - --
+     - 1
+     - 1
+     - --
+   * - p2 r0
+     - +0.33
+     - +0.49
+     - --
+     - 1
+     - 1
+     - --
+   * - p2 r1
+     - +0.19
+     - +0.34
+     - --
+     - 1
+     - 1
+     - --
+
+Each matched body takes the real body's brightness, measured from the real disc's
+I/F, is shaded with the lunar-Lambert law, and is lit from the direction the real
+body's light comes from.  Each real limb is measured against a silhouette whose radii,
+for the mid-sized Saturnian moons, are the IAU values; the Cassini kernels give older
+radii, which put four of the five real Tethys limbs inside their matched limbs by 0.24%
+to 0.35% of the radius.  Every limb is read along each point's direction from the
+body's center, so the result does not change as a limb turns in the image.  A real limb
+point counts only when nothing but its body and the sky lies along its track: another
+moon in front or behind, the planet, the planet's main rings in front of the body or
+beside it, and the planet's shadow over the body are kept out, and so are the rise
+widths whose profiles reach them.  The widths come only from the body the matched frame
+renders, and the matched frame's limb and widths are measured over the same stretch of
+limb as the real ones.  A real limb whose remaining arc is too short to tell a radial
+offset from a shift of the whole limb, or whose offset is known to worse than 0.2 px,
+is left out with its reason.  Four real NAC limbs are left out this way.  A Dione limb
+that runs off the frame keeps too short an arc (128 degrees).  Three give too imprecise
+an offset: a Rhea limb that runs off the frame, a Dione limb mostly off the frame, and
+the Dione limb in front of Rhea, of which 38 points on a 41 degree arc remain.
+
+In p1 r1, the three real limbs, of Dione and Tethys between 75 and 111 degrees phase,
+lie from 0.06 px inside the silhouette to 0.10 px outside it, with a median 0.09 px
+outside, and their matched limbs give 0.09 px: the two medians differ by 0.005 px.  The
+11 real limbs of bodies under 400 px across have a median of +0.09 px, and their
+matched limbs +0.08 px.  p0 r2 lies outside its band: two of its three real limbs are
+Enceladus limbs, 869 and 789 px across, that peak 0.83 and 1.17 px outside their
+shape model's silhouette, while the matched spheres peak within 0.05 px of theirs.  At
+those scales a pixel is 0.58 to 0.64 km, so the difference between Enceladus's shape model
+and its true shape is a large part of a pixel, and a sphere cannot show it.  The
+record keeps the bin as a finding.  Three real NAC discs are clipped at
+the camera's full scale; they have no real limb and no albedo, and their matched bodies
+render white.  Prometheus and Pan have no limb in the real frames, because the
+navigator places none on their shapes, so their matched limbs are not measured.  Of the
+23 matched bodies with an unclipped real disc, one still overflows the detector's full
+well, an Enceladus at 21 degrees phase (11,878 pixels, at up to 1.13 times the full
+well), where the law brightens the limb above the disc interior the albedo is measured
+on.  The bins without a verdict are set by one or two limbs, such as a 377 px Mimas
+whose real limb peaks 1.63 px outside.  The WAC cohort's one limb peaks -0.12 px real
+against +0.09 px matched.
+
+The record also holds the photometric-law study
+(:ref:`sim-realism-law-study`).  For every moon the cohort shows resolved, whatever its
+frame's scene class, the study renders a twin under each of the four laws the simulator
+offers and compares how the brightness falls across the disc, measured by the fitted
+Minnaert exponent.  It measured 27 discs on 23 frames between 1.5 and 136 degrees
+phase: Dione, Tethys, Mimas, Rhea, Enceladus, and Iapetus, whose dark and bright
+terrains are measured apart, each over a cap drawn inside it.  It left out 93 moons in
+view, each with its reason in the record: 70 under 10 px across, 9 of irregular shape,
+5 whose shape is not known, 3 clipped discs, 4 Iapetus terrain caps not lit on the side
+in view, and two that showed too little of the lit disc.  Each twin is a sphere, so the
+study does not pair one with a moon that is irregular or whose shape is not known.
+
+The study reads calibrated frames only, because its fits need each pixel in I/F, and it
+leaves out moons under 10 px across.  Each instrument chapter of the developer guide
+(:doc:`/dev_guide/instruments/instruments`) says whether its camera's frames enter the
+study, and so whether the body statistics (the limb peak, the rise width, the disc
+profile, and the law) are checked for that camera.  The default law is also untested on
+surfaces unlike the Saturnian icy moons, such as volcanic or rocky and icy ones; the one
+dark surface measured is Iapetus's dark terrain, on one frame.  The cohort does not hold a
+resolved frame of the Jovian moons, the Uranian and Neptunian moons, Charon, Phoebe,
+Janus, Helene, Telesto, or Daphnis.
+
+Each law's median distance of its twins' exponent from the real discs':
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 22 22 22
+
+   * - Law
+     - below 60 deg (12 discs)
+     - 60 to 120 deg (13 discs)
+     - above 120 deg (2 discs)
+   * - Lambert
+     - 0.332
+     - 0.119
+     - 0.142
+   * - Lommel-Seeliger
+     - 0.132
+     - 0.223
+     - 0.052
+   * - lunar-Lambert (the default)
+     - 0.031
+     - 0.054
+     - 0.142
+   * - Minnaert, exponent from the real discs' trend
+     - 0.020
+     - 0.064
+     - 0.107
+
+In both bins with a comparison the default agrees best among the laws that separate from
+it (bands 0.025 and 0.046).  Minnaert's law, whose exponent is fitted to the same real
+discs, does not separate from it.  The default's disc-profile check lies within its band
+in both narrow-angle bins with a verdict: -0.017 against 0.023 below 60 degrees, and
++0.040 against 0.046 at 60 to 120 degrees.  Each band comes from the scatter of the
+same twin-and-real pairs it judges.  Iapetus's dark terrain follows the default (exponent
+0.85; the default misses by 0.04).  Two findings stand apart, both on too few frames for
+a verdict.  Iapetus's bright terrain at 81 degrees falls more steeply than every twin
+(exponent 1.10; Lambert misses by 0.09 and the default by 0.21).  The two discs above
+120 degrees, where the default is Lambert's, fall more gently than Lambert's law: over
+the pixels their twins also count, their exponents are 0.85 and 0.81, where the Lambert
+twins fit 0.98 and 0.97.
+
+.. figure:: _figures/realism_law_fits.png
+   :width: 100%
+
+   The real discs' fitted Minnaert exponent and lunar-Lambert blend against phase, one
+   marker per body, with McEwen's blend and the exponent the Minnaert twins take: the
+   line through the real exponents, held to 0.2 to 1.5.
+
+.. figure:: _figures/realism_disc_profiles.png
+   :width: 100%
+
+   Left: each disc's twin exponent less its real one over the same pixels, under every
+   law; every twin of a disc and the real disc are fitted over the pixels all of its
+   twins count.  Right: the default law's pairs, each real exponent beside the twin's,
+   with each camera's verdict by phase bin.
+
+.. figure:: _figures/realism_law_sheet.png
+   :width: 80%
+
+   Real discs beside their twins under each law, each row at the real disc's stretch and
+   over its crop.
 
 The headline reading: each matched star frame now holds the catalog stars
 of its real frame's field, and the simulated star cutouts number 9, from 6
@@ -551,24 +749,25 @@ recurring at fixed detector positions on both sides; :ref:`the Cassini ISS
 chapter <coiss-calibrated-hot-pixels>` explains the difference.  The transient (cosmic-ray) share
 comes from the catalog's fitted cosmic-ray terms (see the measured-transients
 known gap).  Limb rise widths differ in the
-like-for-like pool (co-populated-strata medians 2.19 sim vs 2.54 px
-real, W1/IQR 0.54) with per-stratum divergences from 0.46 to 2.46.  At
-low phase the simulated limb measures narrower than the real one (2.13-2.25
-px vs 2.75-3.09 px medians), and in the high-phase, mid-size stratum it
-measures *wider* (2.61 vs 1.71 px).  Ring-edge widths
+like-for-like pool (co-populated-strata medians 2.25 sim vs 2.62 px
+real, W1/IQR 0.61) with per-stratum divergences from 0.41 to 1.79.  The
+simulated limb measures narrower than the real one in every stratum: at low
+phase 2.33-2.35 px against 2.75-3.09 px, and above 60 degrees phase 1.36-2.18 px
+against 1.71-2.58 px.  The matched bodies shade with the lunar-Lambert law, which
+keeps more of the brightness near the limb than Lambert's does and so steepens the
+rise.  Ring-edge widths
 differ by 1.0 px (2.41 sim vs 3.36 px real, W1/IQR 0.50).  The sky-noise
 distribution matches closer than in the 2026-11-07 record (W1/IQR 0.73,
 from 1.44), with the simulated median below the real one (1.7e-4 vs
 1.9e-4 I/F).  Only patches on dark sky enter it now, and the split by
 downlink format remains (the table's first footnote).  The record doesn't
-separate the causes of the low-phase limb residual.  Limb content may
-contribute (real topography, the Lommel-Seeliger approximation), and so may
+separate the causes of the narrow simulated limbs.  Limb content may
+contribute (real topography, the smooth law's approximation), and so may
 the rendered PSF, since the simulated star cutouts are narrower than the
-real ones at both EE50 and EE80.  The high-phase excess runs the other way
-and points at the crescent shading model.  The curve *shapes* agree
+real ones at both EE50 and EE80.  The curve *shapes* agree
 closer than the scalar samples: the density-W1 of the frame-averaged
 curves is 0.05 for the sky power spectrum, 0.19 for the star radial
-profile, 0.11 for the limb profile, and 0.08 for the ring radial profile
+profile, 0.04 for the limb profile, and 0.08 for the ring radial profile
 (axis units over the real IQR; ``curve_divergences`` in the summary).
 The sky power spectrum's distance fell from 0.29 in the 2026-11-07
 record.  A tile's spectrum now enters only when all four of its patches
@@ -707,7 +906,7 @@ pixels cover 9e-5 of the pixels (see :ref:`the Galileo SSI chapter
 transient fraction, 1.2e-4 of pixels, meets 1.6e-4 from the catalog's fitted
 cosmic-ray terms (spike-fraction W1/IQR 0.44; the measured-transients known
 gap).  In FOM 1 every frame pair contributes sky patches, and the matched
-frames have about a quarter of the real sky noise: 0.19 DN against 0.96 DN, over 353 simulated and 822
+frames have about a quarter of the real sky noise: 0.19 DN against 0.96 DN, over 355 simulated and 822
 real sky patches (W1/IQR 8.5).  The real frames also carry an extended
 background glow the matched sky frames do not model (see the known gaps).
 
@@ -723,12 +922,12 @@ star fields, and the matched frames render through the 4x4 readout mode,
 where the catalog's native kernel is rescaled to binned pixels.  Each
 matched frame holds its field's catalog stars, and the two sides give 16
 star cutouts each.  The simulated stars are narrower than the real ones
-at both radii (EE50 0.42 sim vs 0.59 px real, EE80 0.72 vs 1.23 px;
-normalized W1 1.3 and 2.4), and the wing falls further short: the real
+at both radii (EE50 0.39 sim vs 0.59 px real, EE80 0.67 vs 1.23 px;
+normalized W1 1.5 and 1.6), and the wing falls further short: the real
 profile carries far more energy between the two radii than the kernel's
 interim 1.2% wing allows, the signature the NAC kernel showed before its
 wing was tuned.  The frames' bright tail is short by the same mechanism
-(p99 - p50 stretch 4.0 vs 26.8 DN).  The 4x4 frames
+(p99 - p50 stretch 15 vs 26.8 DN).  The 4x4 frames
 test the native kernel only through the rescaling, and say its wing is too
 weak; they say nothing separate about a 1x1 frame.  The sky statistics are
 pedestal-invariant by construction (the sci products are bias-subtracted;
@@ -741,13 +940,16 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-25 pairs:
+2026-11-27 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the
   WAC and LORRI star pairs, with the simulated inlier residuals tighter
-  than the real ones (0.02-0.14 px vs 0.06-0.32 px) -- the sim errs
-  optimistic on star sharpness.
+  than the real ones (0.02-0.11 px vs 0.06-0.30 px) -- the sim errs
+  optimistic on star sharpness.  The Voyager pair locks on both sides too, at
+  0.95 on 7 of 18 predicted stars real and 9 of 14 simulated, but there the
+  simulated inliers sit farther from their predictions (0.83 px against
+  0.39 px).
 - The Cassini ring pair separates on residual texture: ``RingEdgeNav``
   reports 0.71 on the real frame versus 0.94 on its matched render.
   The real frame's ring structure the renderer does not model leaves a
@@ -755,11 +957,11 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   and the ring-vocabulary calibration prices that residual, so the sim
   errs optimistic on ring-scene sharpness.
 - Both limb pairs succeed on both sides, and on both the simulated fit is
-  the tighter.  On the NAC pair (0.77 real vs 0.79 sim) the DT RMS is 0.24
-  px simulated against 0.34 px real; on the WAC pair (0.76 real vs 0.82
-  sim) it is 0.35 against 0.62 px.
-- The NAC and Voyager star pairs lock weakly or not at all on the simulated
-  side.  The NAC
+  the tighter.  On the NAC pair (0.77 real vs 0.79 sim) the DT RMS is 0.23
+  px simulated against 0.34 px real; on the WAC pair (0.76 real vs 0.84
+  sim) it is 0.27 against 0.62 px.
+- The NAC star pair locks weakly on the real side and not at all on the
+  simulated side.  The NAC
   frame, an H-alpha (HAL+CL2) exposure, predicts 4 catalog stars and locks
   at only 0.6, a wide-offset lock on 3 inliers (a known caveat of that
   cohort frame).  Its matched render holds the field's catalog stars, and
@@ -767,9 +969,7 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   navigator ranks 30 predicted stars on it, the most the star-field fit
   takes, because its star prediction ignores the filter and uses a
   placeholder star limit on a simulated calibrated frame.  The fit finds 2
-  inliers and doesn't lock.  The Voyager frame locks at 0.94 on 7 of 11
-  predicted stars, while its matched render predicts 5 and locks at only
-  0.6, a wide-offset lock on 3 inliers.
+  inliers and doesn't lock.
 
 These rows are the evidence a human reads to judge whether the techniques
 *behave* comparably on matched frames.  They were not consulted during
@@ -916,18 +1116,25 @@ Algorithmic-invariant recovery
 ==============================
 
 **Self-consistency floor (not accuracy).** The scenes in this section and the
-sub-pixel sweeps that follow plant a rigid transform but no *model* mismatch:
-the frame is rendered from exactly the geometry, and through exactly the
-point-spread function, the navigator assumes.  The recovery error such a frame
-yields is the *self-consistency floor* -- a bound on how reproducibly the
-solver returns its own input, not a bound on accuracy against a real frame.
-The zero-mismatch render is defined by equality with the navigator's
-configuration: a pure Gaussian PSF (no wings, no field variation, sigma_v =
-sigma_u) at the instrument's configured ``star_psf_sigma``, never an empirical
-kernel -- an empirical PSF, or wings the navigator does not model, would plant
-a hidden mismatch into the floor itself.  Read every clean-recovery number
-below as this floor; the *Model-mismatch sensitivity* section is where those
-floors become the first point of an error-vs-mismatch curve.
+sub-pixel sweeps that follow plant a rigid transform.  A frame rendered from
+exactly the geometry, the shading, and the point-spread function the navigator
+assumes has no *model* mismatch, and the recovery error it yields is the
+*self-consistency floor* -- a bound on how reproducibly the solver returns its
+own input, not a bound on accuracy against a real frame.  The zero-mismatch
+render is defined by equality with the navigator's configuration: a pure
+Gaussian PSF (no wings, no field variation, sigma_v = sigma_u) at the
+instrument's configured ``star_psf_sigma``, never an empirical kernel -- an
+empirical PSF, or wings the navigator does not model, would plant a hidden
+mismatch into the floor itself.
+
+Some of these frames keep one mismatch, in the shading.  The bodies of the
+ellipsoid scenes in this section and of the limb sweeps shade with the scene
+default, the lunar-Lambert law, while the navigator's template shades with the
+Lambert law.  Below about 104 degrees phase their errors include the template's bias
+and lie above the floor.  Read every other
+clean-recovery number below as the floor; the *Model-mismatch sensitivity*
+section is where those floors become the first point of an error-vs-mismatch
+curve.
 
 Each scene below plants a known transform and the navigator predicts the
 unshifted geometry, so the recovered offset (or roll) should equal the planted
@@ -953,8 +1160,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_disc``
      - BodyDiscCorrelateNav
      - (1.43, -0.61) px
-     - (1.50, -0.60) px
-     - 0.07 px
+     - (1.01, -0.48) px
+     - 0.44 px
    * - ``planted_offset_irregular``
      - BodyDiscCorrelateNav (mesh)
      - (1.43, -0.61) px
@@ -963,8 +1170,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_blob``
      - BodyBlobNav
      - (1.43, -0.61) px
-     - (1.43, -0.61) px
-     - 0.01 px
+     - (1.68, -0.69) px
+     - 0.27 px
    * - ``planted_offset_blob_crescent``
      - BodyBlobNav (120 deg)
      - (1.43, -0.61) px
@@ -978,8 +1185,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_limb``
      - BodyLimbNav
      - (1.43, -0.61) px
-     - (1.56, -0.76) px
-     - 0.20 px
+     - (1.23, -0.51) px
+     - 0.22 px
    * - ``planted_offset_ring``
      - RingEdgeNav
      - (1.43, -0.61) px
@@ -998,19 +1205,22 @@ Observations:
   Each scene has its own truth check, measured over 16 noise seeds. Most scenes
   are held to a tolerance: the largest error over the seeds plus a margin of
   0.05 px or a fifth of that error, whichever is larger. The roll is held to
-  0.03 deg. The disc correlation stops at the edge of its sub-pixel search
-  window, so the disc scene's error is held to a band from 0.020 to 0.121 px.
-  Every technique recovers inside its check.
-* At this phase (2026-11-22 measurement) the mesh disc recovers exactly, the
-  blob to ~0.01 px, at 120 deg phase too, the ring edge to ~0.03 px, the fused star
-  field to ~0.04 px, the disc to ~0.07 px, and the limb to ~0.20 px. The limb fit
-  has only the lit half of the outline, and its inward bias there has nothing on
-  the other side to cancel it. The full ensemble on the same scene fuses it with
-  the disc correlation and recovers (1.51, -0.61), 0.08 px off.
+  0.03 deg. The ellipsoid disc, full-disc blob, and limb scenes are held to bands
+  around their known errors instead, because their lunar-Lambert bodies at 30 deg
+  phase bias the navigator's Lambert template. Every technique lands inside its
+  check.
+* At this phase (2026-11-25 measurement) the mesh disc recovers exactly, the ring
+  edge to ~0.03 px, and the fused star field to ~0.04 px. On the ellipsoid bodies
+  the template bias puts the disc 0.44 px and the limb 0.22 px toward the Sun, and
+  the blob centroid 0.27 px away from it. Each error varies by 0.02 px or less over
+  the noise seeds. At 120 deg phase the default law is Lambert's, and the crescent's
+  blob centroid recovers to 0.01 px. The full ensemble on the limb scene fuses the
+  limb fit with the disc correlation and lands 0.40 px off.
 * These are single-phase samples, so a given technique can sit above or below its
-  multi-offset median in the offset-accuracy section (e.g. the disc's ~0.07 px here
-  versus its ~0.006 px sweep median); the table is a same-phase comparison and a
-  correctness check, not the precision benchmark.
+  multi-offset median in the offset-accuracy section. The sweeps' disc and blob
+  bodies shade with the Lambert law, so the disc's sweep median is ~0.006 px; the
+  table is a same-phase comparison and a correctness check, not the precision
+  benchmark.
 
 Single-variable sensitivity
 ===========================
@@ -1256,10 +1466,13 @@ swept across the dense sub-pixel set and the wide range described under
 
 This table and the two sweep figures in this section were measured before the
 simulator drew each limb pixel by how much of it the body covers, left night sides
-black, and fitted the limb on its lit part alone, and they have not been regenerated
-since. Sweeps run after those changes put the haze symmetry fit between 0.02 and
-0.07 px and the limb at a median of 0.22 px on the dense sweep (0.17 to 0.29 px) and
-0.21 px on the wide one, the values the text below quotes.
+black, fitted the limb on its lit part alone, and shaded bodies with the
+lunar-Lambert law by default, and they have not been regenerated since. Sweeps run
+after those changes put the haze symmetry fit between 0.02 and 0.07 px and the limb
+at a median of 0.24 px on the dense sweep (0.16 to 0.28 px) and 0.22 px on the wide
+one (0.17 to 0.27 px), the values the text below quotes. The limb sweep's body
+shades with the lunar-Lambert law, which the navigator's Lambert template does not
+match (see the invariant table above).
 
 The correlation and centroid techniques sit at or below a few hundredths of a
 pixel; the distance-transform techniques carry a larger sub-pixel residual:
@@ -1268,10 +1481,12 @@ pixel; the distance-transform techniques carry a larger sub-pixel residual:
   to ~0.005 px -- the tightest. A zero shift between identical frames recovers
   the disc exactly at ``(0, 0)`` -- the self-consistency floor (not accuracy), a
   reproducibility bound rather than a real-frame result.
-- **The ring edge holds a ~0.03 px residual** and **the limb a ~0.22 px residual**
-  across the dense sweep, both distance-transform effects that vary with the
-  sub-pixel phase; they stay inside the scenes' truth tolerances. See
-  :doc:`/dev_guide/dev_guide_techniques_body_limb` for the mechanism.
+- **The ring edge holds a ~0.03 px residual** and **the limb a ~0.24 px residual**
+  across the dense sweep. Both are distance-transform effects that vary with the
+  sub-pixel phase. On a Lambert body the limb's is 0.22 px, and the Lambert
+  template's pull toward the Sun on the sweep's lunar-Lambert body adds about
+  0.02 px. See :doc:`/dev_guide/dev_guide_techniques_body_limb` for the
+  mechanism.
 - **The haze symmetry fit holds a 0.02 to 0.07 px residual** across the dense sweep, and
   it is a floor rather than a fraction-dependent wobble: the swept axis on the
   ``titan_haze`` scene is pure cross-track, and the scene deliberately renders a
@@ -1300,13 +1515,16 @@ The disc, ring, limb, and star recover with the same accuracy out to their
 ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.02 to 0.07 px floor
 flat out to a planted 45 px -- the extended-FOV search margin, not a limit of the
 method: the mirror-correlation scan searches the whole margin and the arc fit
-recentres once, so nothing degrades across the range. The **blob now holds across the navigable
+recenters once, so nothing degrades across the range. The **blob now holds across the navigable
 range too**: for the 20 px body it stays under ~0.01 px out to ~45 px, where it
 was previously a ~6 px small-offset technique (degrading to ~5.8 px at 20 px) --
 the blob-shaped-disc coarse acquisition re-centers the integration window on the
 body before the centroid, so the body no longer clips out of the predicted bbox.
-The disc template models only a near-full disc, so this holds for bodies at least
-half-lit; a high-phase crescent beyond its bbox still needs a prior. See
+Past half phase the acquisition correlates a synthesized crescent in place of the
+disc, so a high-phase crescent beyond its bbox is found as well: on the
+``planted_offset_blob_crescent_displaced`` scene, ~20 px beyond its box, the blob
+lands 0.01 to 0.02 px off, as the crescent inside its box does. Only a body past
+half phase whose sun direction is unknown still needs a prior. See
 :doc:`/dev_guide/dev_guide_techniques_body_blob`.
 
 Star-field centroiding: dim vs bright
@@ -1495,10 +1713,11 @@ it is 0.11 px, so the relief adds about 0.07 px. Over mesh seeds 0 to 12 it
 ranges from 0.10 to 0.44 px, and this shape's 0.18 px is the median, so the
 shape is typical. Tessellation matters too: at the default 16 by 32 the same
 fit errs 0.50 px on this shape and 0.70 px on the smooth mesh, which is one
-reason the mesh scenes use 64 by 128. The mesh crescent is the loosest at
-0.49 px, against 0.25 px for the ellipsoid crescent: its body is clearly
-irregular (``mesh_lumpiness`` 0.2), and only a thin lit sliver of it constrains
-the centroid. Over mesh seeds 0 to 12 the same pinned blob errs 0.33 to 0.56 px
+reason the mesh scenes use 64 by 128. The mesh crescent is the loosest of the
+three at 0.49 px: its body is clearly irregular (``mesh_lumpiness`` 0.2), and only
+a thin lit sliver of it constrains the centroid. The ellipsoid crescent, which the
+default law shades Lambert at its 120 deg phase, errs 0.01 px. Over mesh seeds 0 to
+12 the same pinned blob errs 0.33 to 0.56 px
 (median 0.45 px), and 5 of the 13 shapes land above half a pixel, so this
 shape is typical and about half a pixel is the crescent's typical error, not a
 bound.
@@ -1690,8 +1909,9 @@ I/F-calibrated vs raw-DN navigation
 ===================================
 
 Every sweep and scene above renders in raw DN. The ``planted_offset_disc_if``
-invariant scene confirms navigation is unit-agnostic: the same body on the
-I/F-calibrated ``coiss_calib_nac`` instrument recovers the planted offset exactly.
+invariant scene confirms navigation is unit-agnostic: the same kind of body on the
+I/F-calibrated ``coiss_calib_nac`` instrument lands 0.44 px from the planted offset,
+the error the raw-DN disc scenes show.
 That scene carries no ``artifacts`` block, so it renders through the stage floor
 (noise-free); a ``calibrated_if`` scene with ``instrument_defaults`` runs the
 full DN detector chain and then the calibration inverse, so calibrated frames
@@ -1712,9 +1932,11 @@ Model-mismatch sensitivity
 ==========================
 
 Most recovery errors above are measured on frames that plant a rigid
-transform but no model mismatch (the shape- and pose-mismatch sweeps are the
-exceptions), so each clean-recovery number is a point on the self-consistency
-floor.  On a real frame the navigator always works against a model that differs
+transform but no model mismatch, and each of those clean-recovery numbers is a
+point on the self-consistency floor.  The exceptions are the shape- and
+pose-mismatch sweeps and the lunar-Lambert bodies, whose shading the
+navigator's Lambert template does not match (see the algorithmic-invariant
+section).  On a real frame the navigator always works against a model that differs
 from the scene.  The sweeps here drive one render-vs-navigate mismatch at a
 time -- the axes cataloged below -- and report the recovery error as a function
 of that mismatch; the error-vs-mismatch curve is the product.  It measures
@@ -1887,13 +2109,16 @@ Summary
 * All eight feature techniques (disc, mesh disc, blob, high-phase blob, star
   field, limb, ring edge, haze symmetry) plus the camera-roll fit recover their
   planted transform to within a pixel and half a degree on clean simulated
-  frames. For every technique but the haze symmetry fit that is the
-  self-consistency floor; the haze scene deliberately renders a limb that
-  isn't the circle the fit assumes.
+  frames. For the mesh disc, the star field, the ring edge, and the roll that is
+  the self-consistency floor. The ellipsoid disc, full-disc blob, and limb scenes
+  shade with the lunar-Lambert law at 30 deg phase, which biases the navigator's
+  Lambert template by 0.22 to 0.44 px, and the haze scene deliberately renders a
+  limb that isn't the circle the fit assumes.
 * The disc, blob, ring edge, and star field are quantization-free: they recover
   any offset -- whole, near-boundary, or arbitrary fraction -- to a few hundredths
-  of a pixel. The disc and blob recover most tightly (~0.01 px). The limb holds a
-  ~0.22 px distance-transform residual and the ring a ~0.03 px residual.
+  of a pixel. The disc and blob recover most tightly (~0.01 px) on the sweeps'
+  Lambert bodies. The limb holds a ~0.24 px residual on its lunar-Lambert sweep
+  body and the ring a ~0.03 px residual.
 * The star field improves with SNR: a dim field recovers to ~0.02 px and a bright
   field to ~0.005 px, the tightest of any technique.
 * The haze symmetry fit recovers a hazy body to within 0.07 px across both the dense
@@ -1905,8 +2130,7 @@ Summary
   0.17 px cross-track and 0.82 px along-track on clean scenes.
 * On the three mesh scenes whose predicted geometry matches the rendered one,
   irregular (mesh) bodies navigate to half a pixel or better (mesh disc
-  0.00 px, limb 0.18 px, and crescent 0.49 px, against 0.25 px for the
-  ellipsoid crescent). Over 13 mesh shapes the crescent's error ranges from
+  0.00 px, limb 0.18 px, and crescent 0.49 px). Over 13 mesh shapes the crescent's error ranges from
   0.33 to 0.56 px. When the navigator predicts the wrong shape, the error tends
   to grow with the rendered relief, though on 7 of 13 mesh shapes it falls at
   some step: over the 13 shapes it ends 2.7 to 12.7 px off at an 8.75% RMS

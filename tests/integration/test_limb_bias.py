@@ -29,14 +29,15 @@ def test_renderer_centroid_is_unbiased(center_v: float, center_u: float) -> None
 
 
 def test_renderer_gradient_ridge_sits_inside_limb() -> None:
-    """The brightness gradient ridge is inset from the geometric limb.
+    """A Lambert sphere's brightness gradient ridge is inset from the geometric limb.
 
     A positive inset is the photometric roll-off signature: the steepest-slope
     point that the edge distance transform localizes lies inside the true
     silhouette boundary, so a limb fit that assumes the edge is at the geometry
-    is pulled inward on the lit side.
+    is pulled inward on the lit side.  The roll-off is the Lambert law's, so the
+    sphere states that law.
     """
-    inset = ridge_inset_phase_zero(diameter_px=160.0)
+    inset = ridge_inset_phase_zero(diameter_px=160.0, photometric_law='lambert')
     assert inset > 0.1
 
 

@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": 24.270206874524636,
-  "offset_dv_px": 33.93058713904425,
+  "offset_du_px": 23.883892292744864,
+  "offset_dv_px": 34.08683209859831,
   "scene_name": "vgiss_1_nac_disc",
   "status": "success"
 }

@@ -9,21 +9,23 @@ exposure_sec: 1.0
 # body's disc and over a quarter of its limb (centers 55 px apart).
 # Rendered truth (body_occlusion): FAR visible_fraction ~0.67, occluded limb
 # arc ~100 deg; NEAR fully visible.  Measured ensemble behavior
-# (2026-11-22, occlusion-aware lit sim limb): FAR's LIMB_ARC drops the hidden
+# (2026-11-24, occlusion-aware lit sim limb): FAR's LIMB_ARC drops the hidden
 # arc and reports visible_arc_fraction 0.60 of its lit limb (reliability
-# 0.69), and the limb fit, on visible arcs only, lands 0.23 to 0.25 px from
-# the planted offset.  The disc correlation answers (2.50, -1.23), 0.41 px
-# off on every draw, the maximum of its high-pass refinement surface.  The
-# composite disc template paints the near body over the far one by a
-# yes-or-no mask, so it keeps a dark outline at the near body's limb that
-# the image does not have, and the outline pulls that maximum (#1099).
-# Drawn by coverage, without that outline, the template brings the disc
-# correlation to 0.012 px on every seed tried.  The fused
-# result stays a medium-tier success rather than degrading to conflicted.
+# 0.69), and the limb fit, on visible arcs only, lands 0.18 to 0.19 px from
+# the planted offset and flags itself spurious on every draw.  The disc
+# correlation lands 0.40 px off on every draw, the maximum of its high-pass
+# refinement surface.  The composite disc template
+# paints the near body over the far one by a yes-or-no mask, so it keeps a dark
+# outline at the near body's limb that the image does not have, and the outline
+# pulls that maximum (#1099).  Both bodies also shade with the default
+# lunar-Lambert law, and the navigator's Lambert template pulls both answers
+# toward the Sun (#1110).  On Lambert bodies the disc correlation landed 0.41 px
+# off, and 0.012 px with a template drawn by coverage.  The fused result stays a
+# medium-tier success rather than degrading to conflicted.
 # Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 0.373 to 0.377 px (spread 0.003 px).  Each end of
+# the fused error runs 0.396 to 0.399 px (spread 0.003 px).  Each end of
 # the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [0.323, 0.427] px.
+# outside, giving [0.346, 0.450] px.
 bodies:
   - name: FAR
     shape_model: ellipsoid
@@ -54,5 +56,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.375
+  known_offset_error_px: 0.398
   known_offset_error_tol_px: 0.052

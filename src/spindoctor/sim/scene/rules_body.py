@@ -317,7 +317,7 @@ def _check_pose_scatter(value: Any, *, label: str, source: str) -> None:
 
 
 def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source: str) -> None:
-    """Validate one body's limb-relief and photometric truth keys."""
+    """Validate one body's limb-relief and photometric truth keys and its normal albedo."""
     _check_optional_nonnegative_number(
         obj.get('limb_relief_rms'), f'{label}.limb_relief_rms', source=source
     )
@@ -342,6 +342,9 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
             f'{source}: {label}.limb_relief_corr_deg must be at least '
             f'{MIN_LIMB_RELIEF_CORR_DEG} degrees; got {relief_corr}'
         )
+    _check_optional_positive_number(
+        obj.get('normal_albedo'), f'{label}.normal_albedo', source=source
+    )
     law = obj.get('photometric_law')
     if law is not None and law not in PHOTOMETRIC_LAWS:
         raise SimSceneValidationError(

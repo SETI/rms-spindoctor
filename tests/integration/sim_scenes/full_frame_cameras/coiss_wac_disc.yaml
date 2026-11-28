@@ -5,9 +5,14 @@ size_v: 1024
 size_u: 1024
 random_seed: 7
 exposure_sec: 0.005
-# A raw Cassini WAC frame of a moon 128 px across, at a phase of 50 deg.  The
-# CL1+CL2 filter at the camera's shortest exposures puts the disc near I/F
-# 0.6 to 0.9, under the full well.  instrument_defaults turns on the camera's
+# A raw Cassini WAC frame of a moon 128 px across, at a phase of 50 deg, through
+# CL1+CL2 at 5 ms, among the camera's shortest exposures.  The body is as bright
+# as Rhea in W1637520502, at 27 deg phase through CL1+CL2 at 5 ms: normal_albedo,
+# 0.553, is that disc's median I/F over the lunar-Lambert law's value, counting
+# the pixels where the Sun and the camera are both within about 73 deg of
+# overhead, as the realism match measures it.  The brightest pixel at the sunlit
+# limb fills 46% of the full well.  The real frame's brightest raw pixel reads
+# code 126, where the top code is 255.  instrument_defaults turns on the camera's
 # whole raw chain: shot, read, and readout-dark noise, hot pixels, cosmic rays,
 # banding, bias structure, bloom, and the fitted PSF and distortion residual.
 #
@@ -28,17 +33,25 @@ bodies:
     semi_c_px: 64.0
     illumination_angle: 300.0
     phase_angle: 50.0
+    normal_albedo: 0.553
 offset_v: 6.83
 offset_u: -11.29
 offset_rotation_deg: -0.0115
-# The disc correlation finds the offset to 0.09 px but discards it on every draw
+# The disc correlation lands 0.28 px off but discards that answer on every draw
 # (#1147).  The correlation marks any answer within 2 px of its search window's edge
 # spurious, and the WAC window is 13 px, so every answer past 11 px on an axis is
 # thrown away; real WAC errors reach 12.4 px.  The limb fit carries the frame alone,
-# 0.13 to 0.17 px off over 16 seeds, at low tier with a 2.6 px sigma.  The block holds
+# 0.11 to 0.13 px off over 16 seeds toward the Sun, at low tier with a 2.6 px sigma.
+# The Lambert template's bias on the lunar-Lambert body (#1110) adds to that error.
+# The block holds
 # the low tier, so a fix that keeps the disc answer fails here until the block is
 # retired.  The star techniques' margin test has the same effect on WAC star frames
 # (#785).
 expected:
   status: success
   confidence_tier: low
+  # The body shades with the default lunar-Lambert law, and the navigator's
+  # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
+  # fused error over the seeds, measured as sim_truth.py describes.
+  known_offset_error_px: 0.1185
+  known_offset_error_tol_px: 0.0635

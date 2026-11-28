@@ -2,8 +2,8 @@
 
 This is the image side's one renderer for an ellipsoid body.
 :func:`spindoctor.sim.render.bodies.render.render_single_body` sends every ellipsoid
-here, whatever its settings: a smooth Lambert disc, a limb-relief field
-(:mod:`spindoctor.sim.render.bodies.relief`), a non-Lambert photometric law or
+here, whatever its settings: a smooth disc, a limb-relief field
+(:mod:`spindoctor.sim.render.bodies.relief`), any photometric law or an
 opposition surge (:mod:`spindoctor.sim.render.bodies.photometry`), craters
 (:mod:`spindoctor.sim.render.bodies.craters`), and surface textures and transits
 (:mod:`spindoctor.sim.render.bodies.texture`).
@@ -17,8 +17,8 @@ the edge, and at the terminator, where the law clips; shading coarsely and
 interpolating would move the light a few thousandths of a pixel away from the sun.
 The body is placed on the working grid by
 :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`, the projection the
-navigator's predicted body uses, so a smooth body renders exactly as the predicted
-body when the working grid has the same factor.
+navigator's predicted body uses, so a smooth body shaded with the Lambert law renders
+exactly as the predicted body when the working grid has the same factor.
 
 The relief and the craters are laid out on the *detector grid*, one point per
 detector pixel, and interpolated onto the working grid: the tilt the relief gives
@@ -83,7 +83,11 @@ from spindoctor.sim.render.bodies.ellipsoid_relief import (
     relief_normals,
     relief_resolved_on_detector_grid,
 )
-from spindoctor.sim.render.bodies.photometry import incidence_cosines, shade_surface
+from spindoctor.sim.render.bodies.photometry import (
+    PHOTOMETRIC_LAW_DEFAULT,
+    incidence_cosines,
+    shade_surface,
+)
 from spindoctor.sim.render.bodies.relief import ReliefField, synthesize_relief_field
 from spindoctor.sim.render.bodies.texture import (
     AlbedoTextureSpec,
@@ -147,7 +151,8 @@ class EllipsoidBodySpec:
         limb_relief_rms: Commanded limb-slice relief RMS (h/R; 0 = off).
         limb_relief_corr_deg: Relief correlation length, degrees of arc.
         relief_seed: Seed of the relief-field realization.
-        photometric_law: One of the photometry module's law names.
+        photometric_law: One of the photometry module's law names (default
+            lunar-Lambert).
         minnaert_k: Minnaert exponent (law 'minnaert' only).
         surge_amplitude: Opposition-surge amplitude (0 = none).
         surge_width_deg: Opposition-surge angular width in degrees.
@@ -178,7 +183,7 @@ class EllipsoidBodySpec:
     limb_relief_rms: float = 0.0
     limb_relief_corr_deg: float = 15.0
     relief_seed: int = 0
-    photometric_law: str = 'lambert'
+    photometric_law: str = PHOTOMETRIC_LAW_DEFAULT
     minnaert_k: float = 0.5
     surge_amplitude: float = 0.0
     surge_width_deg: float = 6.0

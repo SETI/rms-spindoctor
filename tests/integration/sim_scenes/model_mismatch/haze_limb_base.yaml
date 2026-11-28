@@ -35,6 +35,9 @@ bodies:
     semi_c_px: 90.0
     illumination_angle: 90.0
     phase_angle: 40.0
+    # The navigator's template shades Lambert, so the body does too and the
+    # self-consistency floor carries no photometric mismatch.
+    photometric_law: lambert
     atmosphere:
       scale_height_px: 12.0
       tau_ref: 4.0

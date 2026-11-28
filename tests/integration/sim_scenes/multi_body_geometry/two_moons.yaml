@@ -32,3 +32,10 @@ noise:
 offset_v: 1.37
 offset_u: -0.84
 offset_rotation_deg: 0.0
+expected:
+  status: success
+  # The bodies shade with the default lunar-Lambert law, and the navigator's
+  # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
+  # fused error over the seeds, measured as sim_truth.py describes.
+  known_offset_error_px: 0.4115
+  known_offset_error_tol_px: 0.0555

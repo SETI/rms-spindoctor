@@ -37,7 +37,11 @@ from spindoctor.sim.render.bodies.placement import (
     finish_unseen_body,
 )
 from spindoctor.sim.render.bodies.relief import ReliefField, synthesize_relief_field
-from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
+from spindoctor.sim.render.bodies.spec import (
+    BodySpec,
+    body_identity_seed,
+    scale_by_normal_albedo,
+)
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.mesh import (
     Mesh,
@@ -261,7 +265,7 @@ def render_single_mesh_body(
         )
         mask, body_info = finish_single_body(
             img,
-            body_render.intensity,
+            scale_by_normal_albedo(body_render.intensity, body),
             body_render.coverage,
             body_name=body_name,
             center_v=center_v,

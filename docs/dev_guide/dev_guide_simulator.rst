@@ -17,9 +17,13 @@ single-variable sensitivity sweeps, and the sensitivity report
 
 Its results are reproducibility and self-consistency results, measured mostly on
 the Cassini NAC. On a simulated frame the navigator's body, ring, and star models
-are simulated counterparts that share the renderer's geometry and shading, so a
-recovered offset says how tightly the techniques converge on a frame drawn by
-their own kind of model, not how accurately navigation works on a real frame.
+are simulated counterparts that share the renderer's geometry. A body shades as the
+navigator's Lambert template does only when its scene states
+``photometric_law: lambert``. The default law is lunar-Lambert, and below about 104
+degrees phase it differs from the template, so there a recovery also measures the
+template's bias (see :ref:`sim-photometric-laws`). A recovered offset says how tightly
+the techniques converge on a frame drawn by their own kind of model, not how accurately
+navigation works on a real frame.
 The confidence values the navigator reports are provisional: they were fitted on
 a simulated campaign. :ref:`sim-capability-envelope` sets out what the simulator
 can and cannot establish.
@@ -240,15 +244,18 @@ registry beside it in :mod:`spindoctor.sim` (paths are relative to ``sim/``):
 **The navigator side** predicts what the scene *should* look like, standing in
 for the SPICE-backed models that predict a real frame; those production models
 never run on a simulated frame. Its predictions share the renderer's geometry,
-shading, point-spread function, ring projection, and star flux, so a scene drawn
-without a deliberate mismatch is the navigator's own template plus a shift and
-noise. For stars that holds only when the scene's PSF is the navigator's own,
+point-spread function, ring projection, and star flux. Its body template shades with
+the Lambert law, and a body's shading matches it only when the scene states
+``photometric_law: lambert``, since the default law is lunar-Lambert (see
+:ref:`sim-photometric-laws`). A scene that states the Lambert law and plants no other
+deliberate mismatch is the navigator's own template plus a shift and noise. For stars
+that holds only when the scene's PSF is the navigator's own,
 ``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
 ``optics`` block a star renders as a point, which the navigator's Gaussian
 doesn't match. Its models and the ring renderer live under
 ``nav_model/simulated/`` so the package layout states who owns them. The ellipsoid
-body template is the exception, shared on purpose so both sides shade a smooth body
-the same way: the shared
+body template is the exception, shared on purpose so both sides shade a smooth Lambert
+body the same way: the shared
 :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` draws the predicted
 template of an ellipsoid body, and
 :mod:`spindoctor.nav_model.simulated.predicted_ring` draws the
@@ -482,8 +489,8 @@ simulated navigation error has been shown to predict real error, and no such
 comparison has been made. The realism match (:ref:`sim-realism-match`) is a
 precondition for that, not the comparison itself: it measures how closely
 simulated image statistics resemble a real cohort's. It has no threshold for
-how close is close enough, though a regression check holds it to its committed
-record (:ref:`sim-realism-regression`). Its tuned values were fitted on the
+how close is close enough, and CI does not run it: it is a program someone runs on
+demand, with a record of its last run (:ref:`sim-realism-record`). Its tuned values were fitted on the
 same frames that report them. The Cassini NAC is the best-supported cohort.
 The simulator report's realism section
 (:doc:`/simulator_report/simulator_report`) gives its current match: which
@@ -1766,7 +1773,7 @@ renders the camera's frames at the camera's own settings. If the matched scene
 must copy commanded settings from the camera's real frames (a filter, a gain
 state, a downlink table), the realism match needs a reader of the real label.
 That reader goes in a mission-named module,
-``tests/integration/sim_realism_frames_<mission>.py``, which registers it for
+``util/sim_realism/sim_realism_frames_<mission>.py``, which registers it for
 the sidecar's mission when imported.
 
 .. _sim-artifact-framework:
@@ -2255,13 +2262,21 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are thirteen:
+not yet fixed. There are 26. In 13 of them an ellipsoid body shades with the
+default lunar-Lambert law, and the navigator's Lambert template pulls the answer
+toward the Sun (see :ref:`sim-photometric-laws`): ``disc_subpixel_offset``,
+``low_phase_limb_misconverge``, ``banded_planet_transit``, ``disc_structured_loss``
+and its adversarial twin, ``two_moons``, the full-frame discs
+``coiss_calib_nac_disc``, ``coiss_wac_disc``, ``gossi_disc``, and
+``vgiss_1_nac_disc``, and the damaged moons ``coiss_nac_lossy_moon``,
+``gossi_ict_moon``, and ``nhlorri_moon_raw``. These land 0.11 to 0.84 px off. The
+other thirteen:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
 - In ``relief_psf_stray_light``, the disc correlation lands on the maximum of its
-  high-pass surface, 0.88 to 0.90 px off, pulled by the relief that the smooth
-  template lacks.
+  high-pass surface, 0.99 to 1.00 px off, pulled by the relief that the smooth
+  template lacks and by the same template bias.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
 - In ``titan_crescent_horns`` and its noiseless twin, the disc correlation,
@@ -2272,8 +2287,10 @@ not yet fixed. There are thirteen:
   7.3 to 7.6 px wrong.
 - In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
   outline that the image doesn't have, and the disc correlation lands on the
-  maximum of its high-pass surface, pulled by that outline.
-- In ``mutual_deep``, the far body's crescent pulls the disc correlation.
+  maximum of its high-pass surface, pulled by that outline and by the template
+  bias.
+- In ``mutual_deep``, the far body's crescent and the template bias pull the disc
+  correlation.
 - In ``keeler_gap_unlit_ansa``, the edge fit slides along nearly straight edges.
 - In ``a_ring_edge_f_ring``, the unfit camera twist slides the curved edges along
   themselves.
@@ -2410,9 +2427,14 @@ recovery-error-vs-mismatch curve is the product. The floor is equality with the
 navigator's configuration (for the PSF axis, a pure Gaussian at the instrument's
 ``star_psf_sigma`` with the wing weight at zero; for the photometric axis,
 Minnaert ``k = 1``, which is exactly Lambert; for the ephemeris and smear axes, a
-zero planted error). The mismatch parameter is a render-side truth key the
-boundary filter strips, so the navigator keeps its default belief while the
-render departs from it. The sweeps and their floors:
+zero planted error). The base bodies of the PSF, ephemeris, and haze sweeps state
+the Lambert law, the navigator's own, so their floors carry no photometric
+mismatch. So do the base bodies of the noise, exposure, phase, range, offset, and
+missing-line sweeps, ``regular_sphere_base``, ``regular_sphere_calib_base``, and
+``small_sphere_base``, so that each of those sweeps varies only its own setting.
+The mismatch parameter is a render-side truth key the boundary filter strips, so
+the navigator keeps its default belief while the render departs from it. The
+sweeps and their floors:
 
 - ``psf_limb_mismatch`` -- rendered PSF sigma broadened above the navigator's
   Gaussian; the softened limb edge biases the distance-transform fit, and at a
@@ -2463,11 +2485,13 @@ The body renderer
 A body is drawn by one of two renderers chosen by ``shape_model``: the
 ellipsoid renderer (``bodies/ellipsoid.py``) and the polyhedral-mesh renderer
 (``bodies/mesh.py``), both sharing the axis convention below. The ellipsoid
-renderer draws every ellipsoid body, whatever its settings: a smooth Lambert disc,
-a limb-relief field, a non-Lambert photometric law or opposition surge, craters,
-and surface textures and transits. All of those extra ingredients are truth keys:
-the navigator predicts an ellipsoid body as the smooth Lambert template, so every
-one plants a known model error the technique must survive. The navigator predicts a
+renderer draws every ellipsoid body, whatever its settings: a smooth disc, a
+limb-relief field, any photometric law, an opposition surge, craters, surface
+textures, and transits. All of those ingredients are truth keys: the
+navigator predicts an ellipsoid body as the smooth Lambert template, so every one
+plants a known model error the technique must survive. The default lunar-Lambert
+law is one of them below about 104 degrees phase, where it is not yet Lambert. The
+navigator predicts a
 mesh body as the same mesh without the limb relief, flat-shaded, and at the catalog
 pose, unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``,
 and ``pose_scatter`` are among the errors it plants.
@@ -2922,9 +2946,10 @@ within a pixel. At 90 degrees of phase, the worst over 103 sub-pixel centers was
 8 px, and 0.024 px and 0.56% at 16 px.
 
 The navigator's predicted body is shaded on a grid four times finer than the
-detector's. A smooth body whose working grid has that same factor (oversample 4,
-the default for a scene with a point-spread function, or full anti-aliasing at
-oversample 1) is shaded exactly as the predicted body is. A scene that sets
+detector's. A smooth body that states ``photometric_law: lambert`` and whose working
+grid has that same factor (oversample 4, the default for a scene with a point-spread
+function, or full anti-aliasing at oversample 1) is shaded exactly as the predicted
+body is. A scene that sets
 another oversample factor samples the body differently from the navigator. On
 the calibrated disc sweep, shading the smooth disc at detector resolution gave
 the disc correlation a steady error of about 0.015 px.
@@ -2934,12 +2959,16 @@ the disc correlation a steady error of about 0.015 px.
    The line-of-sight reading and the fine-relief cutover are #875 and #1068
    (2026-11-21).
 
+.. _sim-photometric-laws:
+
 Photometric laws
 ----------------
 
 The ellipsoid renderer shades a body with a scene-selected law
 (``photometry.py``), each normalized to 1 at disc center under head-on
-illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
+illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``.
+A body that leaves ``photometric_law`` out shades with ``lunar_lambert``, and a body
+that states another law shades with that one:
 
 .. list-table::
    :widths: 22 10 68
@@ -2964,15 +2993,72 @@ illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
    * - ``lunar_lambert``
      - truth
      - ``2 L(a) mu0 / (mu0 + mu) + (1 - L(a)) mu0`` with the McEwen (1991)
-       cubic blend ``L(a)`` in phase ``a``: Lommel-Seeliger at opposition,
-       Lambert once the cubic reaches 0 near 119 deg.
+       cubic blend ``L(a) = 1 - 0.019 a + 2.42e-4 a**2 - 1.46e-6 a**3`` in phase
+       ``a`` (degrees), clipped to 0 to 1: Lommel-Seeliger at opposition, Lambert
+       once the cubic reaches 0 near 104 deg. The default.
 
 An optional ``opposition_surge`` (truth) multiplies the law by a normalized
 exponential ``(1 + amplitude exp(-a / width)) / (1 + amplitude)`` -- 1 at exact
 opposition, ``1 / (1 + amplitude)`` far from it -- so it plants the
 brightness-versus-phase surge signature. Because the navigator always shades
-Lambert, any non-Lambert law or surge moves the terminator and the limb-darkening
-profile by a known amount.
+Lambert, every other law, the default included, and any surge move the terminator
+and the limb-darkening profile by a known amount.
+
+The default is lunar-Lambert because the discs of real airless icy moons follow it. On
+real frames of Saturn's mid-sized moons the photometric-law study (see
+:ref:`sim-realism-law-study`) fits each disc's own blend ``L``. McEwen's curve differs
+from the fitted values by an rms of 0.15, with a mean difference under 0.001, over 27
+discs from 1.5 to 136 degrees phase. Twins of those discs under the default law
+reproduce how the brightness falls across them, measured by Minnaert's exponent, to a
+median of 0.03 below 60 degrees phase and 0.05 from 60 to 120 degrees. A Lommel-Seeliger
+twin misses by 0.13 and 0.22, and a Lambert twin by 0.33 and 0.12. A Minnaert twin whose
+exponent follows the real discs' own trend with phase does about as well as the default,
+0.02 and 0.06, which the study cannot tell apart from it. The default also puts each
+limb's steepest brightness fall where the real limbs put it. On the discs under 100 px
+across below 60 degrees phase, the real limbs put it 0.04 px outside the silhouette and
+the default law 0.01 px outside, where the Lambert law puts it 0.54 px inside. Above
+about 104 degrees the blend reaches 0 and the default is Lambert's.
+
+The study reads calibrated frames only, because its albedo and its fits need each pixel
+in I/F, and it leaves out moons under 10 px across. So only the cameras whose cohort
+frames meet both conditions back the choice of law. Each instrument chapter of this
+guide (:doc:`instruments/instruments`) says whether its camera's frames enter the study,
+and so whether the body statistics (the limb peak, the rise width, the disc profile, and
+the law) are checked for that camera. The default law is also untested on surfaces unlike the Saturnian icy moons, such as
+volcanic or rocky and icy ones. The one dark surface the study measures is Iapetus's
+dark terrain, on one frame, and it follows the default (see
+:ref:`sim-realism-law-study`).
+
+At zero phase the default law is Lommel-Seeliger's, 1 wherever the surface faces, so
+craters and relief slopes add no shading there. A scene or test that needs them to show
+at full illumination states the Lambert law. Scenes and tests whose purpose is a match
+with the navigator's own template also state it, such as the floors of the
+model-mismatch sweeps and the sphere scenes that the phase, range, disc, blob, noise, and
+missing-lines sweeps start from. The limb sweep starts from a scene that keeps the
+default law.
+
+Every other ellipsoid scene below about 104 degrees phase shades with a law the
+navigator's Lambert template does not match, and the template is biased on it. On the
+clean spheres of the algorithmic-invariant scenes, at 30 degrees phase, the disc
+correlation lands 0.44 to 0.45 px toward the Sun and the limb fit 0.22 to 0.23 px
+toward it. The blob centroid lands 0.27 px away from the Sun. Over noise draws each
+of these errors varies by 0.02 px or less. The 120 degree crescents shade Lambert,
+and their blob centroids land within 0.02 px. The truth checks hold these answers to
+bands around their known errors, so a change to the template shows up as a change. A
+mesh body has no law key and always shades Lambert, through the rasterizer the
+navigator's predicted mesh shares.
+
+.. The template bias is tracked in #1110.
+
+**Normal albedo.**  A body's ``normal_albedo`` (truth) sets how bright its surface
+is: its I/F when lit and viewed head-on at zero phase. The law is 1 there, so the
+surface renders as ``normal_albedo`` times the law, times the opposition surge and
+any texture. The default, 1, is a white surface. The key scales an ellipsoid and a
+mesh body alike, and leaves a haze layer's glow as it is, since the haze is not the
+surface. It must be a positive, finite number. It is the body half of a radiometric
+scale that stars, bodies, and rings will share. A Sun distance and measured star zero
+points are its other parts, and they are not yet in the schema. A matched realism
+scene sets it from the real frame's disc (see :ref:`sim-realism-limb-peak`).
 
 No law is capped at 1. The body stages carry the brightness uncapped to the
 detector, which saturates at its full well. A scene's albedo spot brighter than 1
@@ -3863,7 +3949,7 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   Ellipsoidal body (Lambertian, moderate phase). ``semi_a_px`` is half the
+   Ellipsoidal body (lunar-Lambert, moderate phase). ``semi_a_px`` is half the
    vertical extent, and ``semi_b_px`` is half the horizontal extent.
 
 .. figure:: _sim_images/mesh_body.png
@@ -4426,9 +4512,14 @@ keys and the mesh extras. A key in a row marked
        surface's ragged outline, its slope shading, and its cast shadows; on a
        mesh, the same field displaces the vertices.
    * - ``photometric_law``, ``minnaert_k``
-     - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
-       ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent. *Ellipsoid
-       only.*
+     - The surface-scattering law (``lunar_lambert``, the default, /
+       ``lambert`` / ``lommel_seeliger`` / ``minnaert``) and its Minnaert exponent.
+       A body that leaves the key out takes the default; stating a law gives the
+       body that law (see :ref:`sim-photometric-laws`). *Ellipsoid only.*
+   * - ``normal_albedo``
+     - The surface's I/F when lit and viewed head-on at zero phase, which
+       multiplies the law (default 1, a white surface). A positive, finite
+       number. The haze layer's glow does not take it.
    * - ``opposition_surge``
      - ``{amplitude, width_deg}`` -- the normalized brightness surge near
        opposition. *Ellipsoid only.*
@@ -5502,11 +5593,13 @@ The realism match against real cohorts
 ======================================
 
 Everything above renders what a scene *asks for*; the realism match measures
-how closely those renders resemble real spacecraft frames.  The runner
+how closely those renders resemble real spacecraft frames.  The match is an
+on-demand program in ``util/sim_realism/``, outside the test suite and the distributed
+package, and nothing in CI runs or imports it.  The runner
 
 .. code-block:: bash
 
-   python -m tests.integration.sim_realism
+   python -m util.sim_realism.sim_realism
 
 compares the curated real-image library
 (``tests/integration/image_library/``) against matched simulated frames, per
@@ -5605,7 +5698,18 @@ instrument, on seven figures of merit:
    uncertainty and per-star catalog/distortion residuals, while sim-side
    centers are exact by construction, so misregistration inflates only
    the real widths and part of any tuned PSF wing may absorb
-   registration error rather than optics.
+   registration error rather than optics.  The widths come only from the limb
+   of the body the matched frame renders, so that every real width has a
+   simulated width of the same body beside it, and a real width is left out
+   when its profile runs onto anything other than its body and the sky.  The
+   matched body is lit from the real body's direction, and its widths are taken
+   only near the directions of the real widths from the body's center (see
+   :ref:`sim-realism-limb-peak`).  The same limbs also give the
+   position of each limb's gradient peak relative to the body's silhouette,
+   described under :ref:`sim-realism-limb-peak` below.  Every resolved moon of a
+   calibrated frame also enters the photometric-law study, which compares how
+   the brightness falls across each disc under every law, described under
+   :ref:`sim-realism-law-study` below.
 4. **Ring edges** -- the same profile machinery along predicted ring-edge
    polylines (Cassini cohort).
 5. **Dynamic range** -- fraction saturated, fraction near the frame floor,
@@ -5644,7 +5748,7 @@ frame's image id, so the whole match is deterministic: re-running the runner
 reproduces every simulated frame and every statistic bit for bit.
 
 A star frame's matched scene holds the catalog stars in the real frame's field
-of view (:mod:`tests.integration.sim_realism_twin_stars`).  The navigator's star
+of view (``util.sim_realism.sim_realism_twin_stars``).  The navigator's star
 catalog reduction runs on the real frame and predicts where each star falls.
 Each star is then moved by the frame's operator-verified offset to where it
 appears in the real image, and it keeps its catalog magnitude.  The offset is a
@@ -5708,7 +5812,7 @@ The sky-noise estimate
 ----------------------
 
 The noise sigma of a near-uniform 32 × 32 patch is measured in one of two ways
-(:func:`spindoctor.sim.realism.noise.patch_noise_sigma`).  Which way depends on
+(``util.sim_realism.noise.patch_noise_sigma``).  Which way depends on
 whether the patch's values are quantized.  A patch counts as near-uniform when its
 total standard deviation is at most twice its noise sigma.  This is the *structure
 test*, and it rejects patches crossed by a limb, a ring, or a bright star.
@@ -5730,7 +5834,7 @@ and most paired differences are 0.
 Deciding whether a patch is quantized
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The step is found by :func:`spindoctor.sim.realism.noise.quantization_step`.  Its
+The step is found by ``util.sim_realism.noise.quantization_step``.  Its
 first guess is the smallest gap between two distinct values in the patch.  The step
 and the lattice's origin are then fitted by least squares to the levels of the
 central 98% of the values.  The fit matters for products stored as 32-bit floats.
@@ -5847,7 +5951,7 @@ is an example.
 The quantized fit
 ^^^^^^^^^^^^^^^^^
 
-The fit (:func:`spindoctor.sim.realism.noise.lattice_noise_sigma`) models each pixel
+The fit (``util.sim_realism.noise.lattice_noise_sigma``) models each pixel
 as a smooth surface plus Gaussian noise, rounded to the nearest lattice level.  The
 surface is a quadratic in the pixel's row and column, so it follows a gradient or a
 gentle curve across the patch.  Its six coefficients and the noise sigma are fitted
@@ -5993,8 +6097,7 @@ means the distributions are displaced by about one real IQR -- but it is
 not outlier-robust, so the clip keeps a noise statistic from silently
 measuring an artifact statistic's tails.  The number has no fixed pass/fail
 threshold.  It is reported per figure of merit and judged by a human against
-the cohort's support.  The regression check below holds each number that has
-enough frames behind it to its committed value, within a band.
+the cohort's support.
 
 Curve kinds (the sky power spectrum and the star / limb / ring
 profiles) get the same scalar through
@@ -6024,25 +6127,21 @@ simulated ones is unsupported.  The summary's ``fom_frames`` gives both counts f
 each figure of merit.  Each entry under ``divergences`` and ``curve_divergences``
 gives its own ``n_real_frames``, ``n_sim_frames``, and ``support``.  An unsupported
 statistic's divergence is still written to the summary, but it says nothing about
-the distributions, and the regression check does not hold it to a band.  Where a
+the distributions.  Where a
 figure of merit is unsupported and no independent evidence exists, that instrument's
 simulated frames rest on *unverified forward-model fidelity* for that figure.  The
 report says exactly that rather than implying a match that was never measured.
 
-.. _sim-realism-regression:
+.. _sim-realism-record:
 
-The regression check
---------------------
+The record and the bands
+------------------------
 
-The committed summary of the realism match is the *record*.  The regression check,
-``tests/integration/test_sim_realism_regression.py``, reruns the match and compares
-the fresh run with the record.  It runs once for each instrument listed in the band
-table, which is described below.  The table is meant for instruments whose cohort
-matches in a few seconds.  It lists LORRI, whose two frames take about seven seconds.
-
-The check holds every statistic whose support label is ``limited`` or ``supported``.
-For a sample kind, it holds the normalized W1 (W1/IQR) and the real and simulated
-medians, each when it is a number.  For a curve kind, it holds the W1/IQR.
+The committed summary of the realism match is the *record*.  Each run of the match
+rewrites it, at ``util/sim_realism/realism_results/realism_summary.json``, and a run
+worth keeping is committed.  No test reads it, and CI does not run the match, because
+the match needs the image library's holdings, SPICE kernels, and star catalogs, and
+takes about an hour.  The record is where the simulator report's numbers come from.
 
 The summary records the code that made it.  ``code_commit`` is the commit checked
 out, and ``code_dirty`` says whether tracked files differed from that commit.  Both
@@ -6052,34 +6151,34 @@ summary, and an earlier run leaves those changed until they are committed.  So c
 to them are left out of ``code_dirty``.  A change to any other tracked file marks the
 checkout dirty, even another tool's figure in the same directory.
 
-Each statistic is held to a two-sided band around its recorded value.  A statistic
-that moves beyond its band fails whichever way it moves, because a number that looks
-better can come from a worse simulator.  For example, with the LORRI PSF core drawn
-three times too wide, the star EE50 W1/IQR falls by more than half.  A failure gives
-the statistic, its recorded and fresh values, and its band.  It also gives the
-record's commit and whether that checkout was dirty.  Finally, it says how to accept a
-deliberate change, which is to regenerate the record and then remeasure the bands:
+A second tool, ``util/sim_realism/realism_regression.py``, measures how far each
+statistic moves between runs on unchanged code.  Navigation is not bit-for-bit
+repeatable, so a new run never reproduces the record exactly, and the spread says how
+much movement is noise.  The tool is meant for instruments whose cohort matches in a
+few seconds, such as LORRI, whose two frames take about seven seconds.  It matches one
+instrument again and again, each run in its own process, and writes the band table:
 
 .. code-block:: bash
 
-   python -m tests.integration.sim_realism
-   python -m tests.integration.realism_regression
+   python -m util.sim_realism.realism_regression nhlorri
 
-The second command remeasures the bands and writes the band table.  By default it
-measures every instrument the table lists.  Instruments given on its command line are
-measured instead, and the table keeps the other instruments' bands.  If the table is
-missing or empty, the command starts a table from the instruments given, and it stops
-with an error if none are given.
+The tool measures every instrument the table lists when none is named.  Instruments
+given on its command line are measured instead, and the table keeps the other
+instruments' bands.  If the table is missing or empty, the tool starts one from the
+instruments given, and it stops with an error if none are given.
 
-The band table is ``tests/integration/realism_regression_bands.json``.  For each
+The band table is ``util/sim_realism/realism_regression_bands.json``.  For each
 instrument, it gives the number of runs measured.  For each held statistic, it gives
-the measured value, the run-to-run spread, and the band.  Navigation is not
-bit-for-bit repeatable, so each band rests on its statistic's measured spread.  The
-spread is the largest minus the smallest value over 10 runs on unchanged code, each
-run in its own process.  A band's half-width is the larger of 3 times the spread and
-2% of the statistic's measured value.  The 2% floor covers arithmetic differences
-between machines, which a spread measured on one machine can't show.  ``band_rule``
-in ``tests/integration/realism_regression.py`` is the same rule in code.
+the measured value, the run-to-run spread, and the band.  A statistic is held when its
+support label is ``limited`` or ``supported``.  For a sample kind, the held values are
+the normalized W1 (W1/IQR) and the real and simulated medians, each when it is a
+number.  For a curve kind, the held value is the W1/IQR.  The spread is the largest
+minus the smallest value over 10 runs on unchanged code.  A band's half-width is the
+larger of 3 times the spread and 2% of the statistic's measured value.  The 2% floor
+covers arithmetic differences between machines, which a spread measured on one machine
+can't show.  ``band_rule`` in ``util/sim_realism/realism_regression.py`` is the same
+rule in code.  Every band is two-sided, because a number that looks better can come
+from a worse simulator.
 
 The table stores each value to six significant digits and each spread rounded up to
 three, and each band is computed from those stored numbers.  Because the spread is
@@ -6087,42 +6186,569 @@ rounded up, no band is narrower than 3 times the spread measured.  In the LORRI
 measurement of 2026-11-22, all 19 held statistics came out identical in all 10 runs.
 So every band is the 2% floor, and a statistic whose value is 0, such as the fraction
 of lost lines, is held to exactly 0.  A table is refused when it is empty or when an
-instrument's entry is empty, because a check over either would pass without checking
-anything.
+instrument's entry is empty.
 
-The table and the record must describe the same run.  A second check, in
-``tests/integration/test_realism_record_bands.py``, compares them.  For each
-instrument in the table, the statistics the record holds must be exactly the table's,
-and each recorded value must lie within its band of the table's measured value.  If
-they disagree, or the record lacks an instrument the table lists, the check fails and
-says to remeasure the bands with the command above.  This check reads only committed
-files, so it runs in the unit tier and in CI.
+The same module compares a fresh run with the record, and the table with the record.
+``compare_with_record`` lists the held statistics of a fresh run that moved beyond
+their bands, appeared, or disappeared.  ``check_record_against_bands`` says whether the
+table describes the record: the statistics the record holds for an instrument must be
+exactly the table's, and each recorded value must lie within its band of the table's
+measured value.  After a deliberate change to the simulator, regenerate the record, and
+remeasure the bands if the comparison is wanted:
 
-The committed record carries its code commit and the support labels, so both checks
-are active: the record-versus-table check holds the record to the table, and the fresh
-match holds a new run to the record.  A record written without a code commit predates
-the check.  It also lacks the support labels that select the held statistics, so the
-band table can't describe it.  On such a record, the record-versus-table check is
-marked as an expected failure.  The mark is strict, so the test fails if the check
-passes.  Only a failed comparison counts as the expected failure, so an error in the
-check itself still fails the test.  The fresh match skips on such a record, with a
-message that says so.
+.. code-block:: bash
 
-Setting ``SPINDOCTOR_TEST_REALISM_RECORD`` to the path of another summary points both
-checks at that summary.  Against a summary written from unchanged code, both checks
-pass.  Two deliberately broken simulators show what the check catches.  With the
-LORRI PSF core drawn three times too wide, nine statistics leave their bands.  Among
-them is the EE50 W1/IQR, which falls from 2.36 to 1.05.  With the LORRI read noise
-ten times too high, eight statistics leave their bands.  Among them is the simulated
-signal stretch from the 50th to the 95th percentile, which rises from 2 to 20 DN.
-The LORRI sky-noise statistics themselves are unsupported, because only one real
-frame has sky patches.  So the read noise shows in the dynamic-range and star
-statistics instead.
+   python -m util.sim_realism.sim_realism
+   python -m util.sim_realism.realism_regression
 
-The fresh match reads real frames, so it carries the ``integration`` marker.  It runs
-only where the real frames are available, which needs both ``PDS3_HOLDINGS_DIR`` and
-``OOPS_RESOURCES`` set.  CI does not run it, because the CI workflow leaves
-``OOPS_RESOURCES`` and the star catalogs unset.
+Two deliberately broken simulators showed what the bands catch.  With the LORRI PSF
+core drawn three times too wide, nine statistics left their bands.  Among them is the
+EE50 W1/IQR, which fell from 2.36 to 1.05.  With the LORRI read noise ten times too
+high, eight statistics left their bands.  Among them is the simulated signal stretch
+from the 50th to the 95th percentile, which rose from 2 to 20 DN.  The LORRI sky-noise
+statistics themselves are unsupported, because only one real frame has sky patches.  So
+the read noise shows in the dynamic-range and star statistics instead.
+
+The unit tests of the helpers, the statistics modules, and the study are in
+``util/sim_realism/tests/``.  Run them from the root of the checkout with
+``python -m pytest util/sim_realism/tests``.  CI does not run them.
+
+.. _sim-realism-limb-peak:
+
+The limb gradient peak
+----------------------
+
+The limb rise width of figure of merit 3 says how fast a limb fades, but two limbs
+can fade over the same width and still put their steepest point at different
+radii.  ``BodyLimbNav`` locates a limb at that steepest point, the *gradient peak*,
+so a simulated limb whose peak lies in the wrong place gives the technique a bias
+that real images don't have.  The realism match therefore also measures, for each
+limb, how far the gradient peak lies from the body's true silhouette, the edge of
+the body in exact geometry.  The measurement is in
+``util.sim_realism.limb_peak``, and the realism match's use of it is in
+``util/sim_realism/sim_realism_limb_peak.py``.
+
+**One limb's offset.**  The limb is the polyline the navigator's feature extraction
+places, the same one the rise widths use.  Each of its vertices is read along its
+direction from the body's center: the navigator's own normals point only in steps of
+45 degrees, and a measurement along them would change as the limb turns in the image.
+On a real frame the center is the body's predicted center moved by the verified offset;
+on a matched frame it is the center the scene states.  For each vertex, the silhouette
+point along that direction comes from each side's own geometry.  On a real frame, oops
+traces rays along it every 1/64 px and finds where they stop hitting the body in its
+SPICE shape.  A mission's frame reader can give some bodies other radii for this trace
+than the frame's kernels do, when the kernels' radii are known to be out of date; the
+shape returns to the kernels' once the trace is done, so nothing else sees the change.
+The instrument chapters say which bodies and why (see :doc:`instruments/cassini_iss`).
+On a matched frame, the silhouette is the circle the scene states.  Only the lit half
+of the limb is measured, because the unlit half has no edge against the sky.  On a real
+frame a vertex counts when the Sun is above the horizon just inside the silhouette.  On
+a matched frame it counts when its direction from the center leans toward the light.
+
+The image is sampled along that direction from 4 px inside the silhouette point to
+4 px outside it, every 0.05 px, by cubic spline interpolation.  The peak is where the
+brightness falls fastest within 3 px of the silhouette, refined by a parabola
+through the three samples around it.  A vertex gets no peak when its samples leave
+the frame, when the disc side is not brighter than the sky side, or when the
+steepest fall lies at either end of the 3 px search.
+
+The vertices' peak distances are then fitted with one radial offset for the whole
+limb and a translation of the limb, using a robust fit (a Tukey biweight) that drops
+vertices on a crater rim or a cosmic-ray hit.  A translation moves each vertex's peak
+by its component along that vertex's direction, so along an arc that turns through a
+wide angle the two separate.  An error in a real frame's verified offset or in the
+body's ephemeris moves the translation and leaves the radial offset alone, and so
+does the half pixel between the two coordinate conventions.  A real frame therefore
+doesn't have to be star-navigated to contribute.
+
+**Other bodies near the limb.**  A real limb can pass in front of another moon, or
+have the planet, the planet's rings, or its shadow just beside it.  A vertex there
+measures that other light as well as the limb's.  So a real vertex is left out when
+any sample of its track, inside the silhouette or outside it, lands on another body's
+disc (whether that body lies in front or behind, lit or dark), on the planet's disc, on
+the planet's main rings (in front of the body or over the sky beside it), or in the
+planet's shadow on the body.  These come from the same geometry as the pixels the disc
+fits leave out (see :ref:`sim-realism-law-study`), widened by the same 3 px for the
+blur, with every other body counted rather than only the nearer ones and with the rings
+beside the body added.  Only its own body and the sky then lie along a kept vertex's
+track.  The rule applies to the gradient peak, whose track reaches 4 px to each side of
+the silhouette, and to the rise widths and profiles of figure of merit 3, whose track
+reaches 8 px to each side of the vertex.
+
+**Short arcs.**  Along a short arc a translation of the limb moves every vertex's
+peak almost as the radial offset does, so the fit cannot tell the two apart, and a
+small error that varies along the limb grows into a large error in the offset.  The
+fit gives the correlation between the offset and the translation.  Read along each
+vertex's direction from the center, it depends only on which directions the kept
+vertices cover, however the limb is turned in the image: 0 for a full circle, 0.90 for
+an evenly sampled half circle, and 0.995 for a quarter circle.  A real limb whose
+correlation exceeds 0.97 is left out, with the reason in the record.  The lit part of a
+limb is a half circle, and an evenly sampled arc reaches 0.97 at about 135 degrees, so a
+limb that loses more than about a quarter of its lit half, to the frame's edge or to
+another body, is left out.  A frame in which Dione passes in front of Rhea brackets the
+threshold.  Dione's whole limb reads 0.91, and 0.88 with the 84 vertices in front of
+Rhea's lit crescent left out; Rhea's limb reads 0.95.  With every vertex whose track
+crosses Rhea left out, 43 vertices on a 46 degree arc remain.  They read 0.9997, and
+their offset, +2.0 px against +0.08 px for the whole limb, is known to only 0.40 px.  A
+limb whose radial offset is known to worse than 0.2 px is also left out, so that arc
+is refused on both counts.
+
+**Pairs of limbs.**  A matched frame renders one body, the largest body of its real
+frame, so each frame measures the limb of that body alone.  A pair of frames
+contributes only when both of them measured it, and then each gives one offset.
+The navigator places no limb at all for some bodies: a resolved body it treats as
+highly irregular, such as Prometheus, or one whose shape lies too far from its
+ellipsoid, such as Pan.  The matched sphere always has a limb, so for such a body the
+matched frame's limbs are not measured at all, in the rise widths as in the peaks.
+Other bodies in a real frame are left out, since their matched frame doesn't hold
+them.  The matched body is lit from the direction the real body's light comes from, the
+one that best explains the real disc's incidence angles.  The matched frame's limb is
+then measured over the same stretch of limb as the real one: each vertex's direction
+from the body's center is measured from the direction the light comes from, and a
+matched vertex counts only when a real vertex the real fit kept lies within twice the
+real vertices' median spacing of its direction.  The median leaves out the widest gap
+between them, the stretch of limb the real fit did not use, so two real vertices
+1 degree apart match only the directions near them.  A stretch of limb whose peaks the
+real fit dropped as outliers is left out of the matched limb in the same way.  The
+matched frame's rise widths
+are taken the same way, near the directions of the real widths.  The short-arc limit
+is applied to the real limb alone; over the same directions the matched limb reads
+nearly the same
+correlation (on Rhea in N1489603610, 0.942 real and 0.942 matched).  Every limb
+refused on either side is listed in the record's ``limb_peak_refusals`` with its
+reason.
+
+**Clipped discs.**  A real disc that reaches the camera's full scale reads one flat
+level over its brightest part, so its limb rises to a plateau and its I/F is the
+clip level.  A disc counts as clipped when at least 1% of its interior pixels read
+the full scale.  For a calibrated Cassini frame the test reads the raw product beside
+the calibrated one, at DN 255 for a frame sent through the 12-to-8-bit table and DN
+4095 for a 12-bit frame, because calibration rescales each pixel and the flat top no
+longer reads one value.  On a raw-DN cohort the test reads the frame itself, at the
+camera's saturation level.  A clipped disc has no real limb and no albedo.  Of the
+26 Cassini frames whose matched frame renders a body (25 NAC and 1 WAC), three have
+one, with 51% to 93% of their disc interior at DN 255, while no other frame has more
+than 0.07% of its disc at full scale.
+
+**Bins and band.**  Each limb's radial offset is one sample of kind
+``limb_peak_<bin>``, in the same phase and diameter bins as the rise widths.  The
+JSON summary's ``limb_peaks`` block gives, for each instrument and bin, the number of
+real and matched limbs, the median of each, the band, and whether the matched median
+lies within it.  The band comes from the real limbs alone, and only a bin with at
+least 3 real limbs has one.  It is centered on the real median, and its half-width is
+2 standard errors of the mean: the robust scatter of the bin's own real offsets (1.4826
+times their median absolute deviation) divided by the square root of their number,
+and never less than 0.1 px.  In a bin with one or two real limbs, a single limb that
+the body's shape pulls off its shape model's silhouette sets the median, so such a bin
+records both medians and no band or verdict.
+
+**What the real limbs show.**  On 2026-11-27 the Cassini NAC cohort gave 15 paired
+real limbs and the WAC cohort 1.  Four real NAC limbs are left out.  A Dione limb
+1,162 px across that runs off the frame keeps a 128 degree arc, which reads 0.979, and
+is left out for its short arc.  Three are left out for their precision: a Rhea limb that
+runs off the frame (0.31 px), a Dione limb mostly off the frame (0.30 px), and the
+Dione limb in front of Rhea, of which 38 vertices on a 41 degree arc remain (0.40 px).
+The real limbs of bodies under 400 px across lie close to the silhouette.  Over 11 limbs
+of Mimas, Tethys, Dione, and Rhea, between 15 and 136 degrees phase, their median offset
+is +0.09 px, with a robust scatter of 0.15 px; one of them, a Mimas 377 px across, peaks
+1.63 px outside.  The 4 limbs of bodies over 400 px across scatter more, from -0.65 to
++1.17 px.  At those scales a pixel is 0.6 to 1.4 km, so the difference between a body's
+shape model and its true shape is a large part of a pixel, and the scatter mostly
+measures that.  There are too few real limbs to bin by the incidence angle at the limb
+as well.
+
+**How bright the matched bodies are.**  A matched body takes the real body's
+brightness, through its ``normal_albedo``.  On a calibrated real frame, each disc
+pixel's I/F divided by the matched body's law's value at that pixel's incidence and
+emission angles is one estimate of the normal albedo, and the median over the disc
+sets it (``util.sim_realism.albedo.disc_normal_albedo``).  A pixel counts
+when it survives three steps of erosion of the body's mask, each to a pixel's four
+neighbors, which puts it at least 3.5 px inside the silhouette along a row or a column
+and about 2.1 px inside along a diagonal.  It also needs the cosines of incidence and
+emission both at least 0.3.  The angles come from the real frame's SPICE geometry,
+computed at each image pixel's center after the frame is moved by its verified offset,
+fraction and all (``util/sim_realism/sim_realism_body.py``).  A pixel that a nearer
+body, the planet's main rings, or the planet's shadow covers is left out, as the disc
+fits leave it out.  The clipped-disc test reads the same pixels.  The value includes
+the surface's darkening with phase, since the laws have no phase function: a Dione disc
+at 34 degrees phase in the RED and GRN filters measures 0.50, and one at 107 degrees
+through a methane-band filter 0.14.  A raw product is not in I/F, and a clipped disc's
+I/F is the clip level, so either leaves its matched body white.  The same measurement
+made on the matched frame gives back the albedo it was given to 0.1% on the four NAC
+limb frames.  Over all 22 matched NAC frames that take an albedo it comes back within
+1.6%, least closely on small discs and at high phase.
+
+**What the matched limbs show.**  On 2026-11-27, with each matched body at its real
+body's brightness and lit from its real body's direction, two NAC bins have at least 3
+real limbs (offsets in pixels, negative inside the silhouette):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 14 14 14 14 14 14
+
+   * - Bin
+     - real median
+     - real scatter
+     - band
+     - matched median
+     - n real / matched
+     - verdict
+   * - phase below 60, over 400 px
+     - +0.83
+     - 0.50
+     - 0.58
+     - +0.01
+     - 3 / 3
+     - outside
+   * - phase 60 to 120, 100 to 400 px
+     - +0.09
+     - 0.02
+     - 0.10
+     - +0.09
+     - 3 / 3
+     - within
+
+In the bin at 60 to 120 degrees and 100 to 400 px, the three real limbs, of Dione and
+Tethys between 75 and 111 degrees phase, lie from 0.06 px inside the silhouette to
+0.10 px outside it.  Their median, 0.09 px outside, lies 0.005 px from the matched
+median.  The Dione limb at 107 degrees phase, through a polarizer and a methane-band
+filter, lies 0.10 px outside its silhouette, and its matched limb 0.12 px.  The Tethys
+limb at 111 degrees lies 0.06 px inside, and its matched limb 0.09 px outside.
+The Dione limb in front of Rhea is left out for its precision once the vertices in front
+of Rhea are dropped.
+
+The bin below 60 degrees and over 400 px lies outside its band: its real median lies
+0.81 px outside the matched median, against a band of 0.58 px.  Two of its three real
+limbs are Enceladus limbs 869 and 789 px across, at 40 and 21 degrees phase, which peak
+0.83 and 1.17 px outside their shape model's silhouette; the third, a Tethys limb 765 px
+across at 1.5 degrees, peaks 0.26 px inside.  Their matched spheres peak from 0.01 px
+inside to 0.04 px outside.  At 0.58 to 0.64 km per pixel, the difference between
+Enceladus's shape model and its true shape is a large part of a pixel, which a sphere
+cannot show.  A fourth limb, of a Dione 1,162 px across that runs off the frame, is
+left out for its short arc.
+No test lists it as a known finding, because no test reads the record.
+
+The other bins hold one or two paired limbs and have no verdict: below 60 degrees
+under 100 px, +0.04 real against +0.02 matched (2 limbs each); below 60 degrees at
+100 to 400 px, +0.82 against +0.05 (2 each); 60 to 120 degrees under 100 px, -0.00
+against +0.11 (2 each); 60 to 120 degrees over 400 px, -0.65 against +0.08 (1 each);
+above 120 degrees, +0.33 against +0.49 under 100 px and +0.19 against +0.34 at 100 to
+400 px (1 each); and the WAC's one limb, -0.12 against +0.09.
+
+The Tethys limb at 1.5 degrees phase spans 230 degrees of its limb, the matched one
+180.  Near zero phase the Sun stands above the horizon just inside the silhouette over
+more than half the limb, and the real limb counts a vertex there as lit, while the
+matched limb counts only the half its direction leans toward the light.
+
+The three matched bodies whose real disc is clipped render white and overflow the full
+well; their limbs are not compared.  Of the 23 others, one still overflows before the
+detector caps it, an Enceladus 789 px across at 21 degrees phase: its albedo comes from
+the disc interior, and the law brightens toward the sunlit limb above that, to 1.13
+times the full well over 11,878 pixels.  Its real limb peaks well outside its shape
+model's silhouette (+1.17 px).  The real camera clips a disc without visible bloom,
+while the simulator spreads the charge above its full well along the columns, so a
+matched frame that overflows does not look like a real clipped frame.
+
+**Which law the limbs follow.**  The photometric-law study below renders a twin of each
+measured real disc under every law, and where the realism match measured the real
+frame's limb, it measures the twin's limb too.  Its per-law limb peaks are in the next
+section.
+
+.. _sim-realism-law-study:
+
+The photometric-law study
+-------------------------
+
+A photometric law sets how a body's brightness changes from the middle of its disc out
+to the limb and in to the terminator.  The realism match checks the scene's default law
+against the real frames, and compares it with every other law the simulator offers, so
+the choice of the default rests on the record.  The study is in
+``util/sim_realism/sim_realism_laws.py``, the real discs are measured in
+``util/sim_realism/sim_realism_laws_discs.py``, the fits are in
+``util.sim_realism.disc_profile``, and its figures and record block come from
+``util/sim_realism/sim_realism_laws_report.py``.
+
+**Which discs.**  The study looks at every moon in view in each calibrated real frame,
+whatever the frame's scene class, so a moon in a star frame counts as much as one in a
+limb frame.  A moon is in view when its predicted outline, moved by the frame's verified
+offset, reaches into the frame.  A moon is measured when its shape is regular, it has no
+atmosphere, its disc is not clipped at the camera's full scale (the clipped-disc test
+above, over the part of the disc that nothing hides), at least a quarter of its lit disc
+lies in the frame, and at least 100 lit pixels lie clear of the limb and the terminator.
+Every moon in view that fails one of these is listed in the record's
+``law_study.excluded`` with its reason.  Each twin is a sphere, so it cannot show an
+irregular moon's real shape, and the frame's geometry treats such a moon as an
+ellipsoid too.  A moon whose shape is not known is left out for the same reason.
+
+The frame's lighting and viewing angles are computed at each pixel's center after the
+frame is moved by its verified offset, so they line up with the image to a fraction of
+a pixel.  The geometry traces each body alone, so a moon's disc leaves out the pixels a
+nearer moon or the planet covers, the pixels behind the planet's main rings, and the
+pixels in the planet's shadow, each widened by 3 px for the blur.  A faint dusty ring is
+not taken as hiding a moon.
+
+**Two-tone moons.**  A photometric law describes one surface.  A moon whose surface
+holds two terrains of very different albedo is therefore measured one terrain at a
+time, over a cap drawn well inside each terrain, and the rest of its disc is left out.
+The caps are facts about the body, so they live in
+``util/sim_realism/sim_realism_body_facts.py`` and apply whichever camera saw the moon.
+The list holds Iapetus.  Its dark terrain is centered on the apex of its orbital motion,
+at 90 degrees west, but it does not fill the leading hemisphere.  Toward the poles it
+ends about 50 degrees from the apex, and along the equator it reaches about 120 degrees
+from it.  A cut at a meridian therefore mixes the two terrains: on one frame, 40% of the
+leading hemisphere's pixels lay above 45 degrees latitude, where the surface reads 3 to
+5 times brighter.  The study takes a cap of 40 degrees about the apex for the dark
+terrain, and one of 40 degrees about the antapex for the bright terrain.  A cap's share
+in the frame is measured against the lit area the cap would show if the whole disc lay
+in the frame.
+
+**The pixels and the fits.**  A pixel counts when it is lit, lies at least 3 px from the
+edge of the lit region, has cosines of incidence and emission both at least 0.05, and is
+below the camera's full scale.  The 3 px are about two widths of the narrow-angle
+camera's point-spread function, so the blur of the limb and the terminator leaves the
+counted pixels alone.  At most 60,000 pixels of a disc are kept, every n-th one.
+Minnaert's law, ``I = B0 mu0**k mu**(k - 1)``, is a straight line in ``log(I mu)``
+against ``log(mu0 mu)``, and its exponent ``k`` is the line's slope, fitted with pixels
+more than 3 robust standard deviations off the line dropped and the fit repeated.  The
+slope does not depend on the disc's brightness, and an albedo marking moves only a few
+pixels off the line.  The lunar-Lambert blend ``L`` is fitted the same way to
+``I = B0 (2 L mu0 / (mu0 + mu) + (1 - L) mu0)``.  The profile along the photometric
+equator, the great circle through the points under the Sun and under the camera, is the
+median brightness in 5 degree bins of luminance longitude over the pixels within 8
+degrees of it.  A pixel's luminance coordinates come from its two cosines divided by the
+sine of the phase, so an error in either cosine grows as the phase falls, and at zero
+phase the circle is not defined.  Below 5 degrees phase the profile bins the pixels by
+``mu`` instead.
+
+**The twins.**  For each real disc the study renders a twin under every law.  The twin
+is a sphere at the moon's apparent size and position in the real frame, lit from the
+direction the real disc's incidence cosines give and at its phase, through the frame's
+filter, gain state, downlink, and exposure.  Its normal albedo is measured from the real
+disc against the twin's own law.  Minnaert's law needs an exponent, and the twin takes it
+from a straight line fitted to all the real discs' exponents against phase, held to 0.2
+to 1.5, so Minnaert's form enters at its best; the record holds the line.  When every
+disc lies at one phase, the line is flat at their mean exponent.
+
+Every twin of a disc is fitted over the same pixels: the ones the real disc's fits
+counted, less any that the sphere's own geometry would not count by the same rules and any
+that any one of the twins reads at its camera's ceiling.  The real disc is fitted again
+over the same pixels, and its fit drops its outliers, such as an albedo marking.  Every
+twin is then fitted over the pixels that fit kept, without dropping any of its own.  A
+twin is a smooth sphere, so a fit of its own would drop mostly the stretches near the limb
+and the terminator where its law curves away from Minnaert's line, which are the stretches
+that tell the laws apart.  So every exponent of a disc reads exactly the same pixels,
+chosen by the real disc alone, and a real disc that lost pixels to a
+terrain cap, a nearer body, the rings, a shadow, or clipping has twins fitted over the
+same part of the disc.  A disc whose pixels do not give a normal albedo under every law is
+left out, since its twins could not match its brightness.  This matters: for any law but
+Minnaert's, the fitted exponent depends on which part of the disc is sampled, so a law
+whose twin clipped the pixels it matches worst would otherwise be scored without them.
+The record gives that real exponent beside each twin's.  On the contact sheet each twin is
+cropped to the real disc's bounds.
+
+A twin pixel clips where its charge fills the full well or its count reaches the
+analog-to-digital converter's limit, whichever comes first.  The frame's camera
+settings and the instrument's entry set both.  The read noise, the downlink, and the
+calibration then spread a clipped pixel's I/F a little below that level, so the study
+takes a twin pixel as clipped when its I/F lies within 4 standard deviations of that
+spread below the ceiling, or above it.  The record gives, for each twin, how many of
+its real disc's pixels it reads at the ceiling.  A twin whose disc is clipped by the
+test a real disc meets does not give a limb gradient peak, because its limb rises to a
+plateau.
+
+**The statistics.**  For each disc and law the study records the twin's exponent less
+the real one over the paired pixels, the residual between the two equator profiles over
+those pixels, and the twin's limb gradient peak where the realism match measured the
+real frame's.  Every limb peak measured on a real frame counts, whether or not the
+realism match's own matched frame measured one.  The residual compares shapes alone:
+the real profile is divided bin by bin by the twin's, the ratio by its median, and the
+residual is the rms of that less 1.  Each statistic is reported by phase bin (below 60,
+60 to 120, and above 120 degrees), by body, and, for the limb peaks, by the limb bins of
+the previous section.
+
+**The disc-profile check.**  The default law's twins are judged per instrument and phase
+bin.  Only a bin with at least 3 discs gets a verdict.  Its statistic is the median of
+the paired differences, each twin's exponent less its own real disc's.  The band's
+half-width is 2 standard errors of those differences (1.4826 times their median
+absolute deviation over the square root of their number), and never less than 0.02.
+The band therefore comes from the same frames it judges: it says how far from zero the
+median may sit, given how evenly the twins follow their real discs.  The JSON summary's
+``disc_profiles`` block holds each bin and whether its median lies within the band.
+
+**The law comparison.**  In each phase bin with at least 3 discs whose twins have an
+exponent under every law, each law's agreement is the median distance of its twins'
+exponents from the real ones.  Two laws separate in the bin when their agreements differ
+by more than the bin's band.  The band comes from the default law's paired differences
+over every camera's discs in the bin, including the discs that lack an exponent under
+another law.  A law that separates from the default and agrees with the real discs
+better than the default does would be a reason to revisit the default.  Where two laws
+do not separate, the record claims no order between them.
+
+The exponent is the statistic the check judges because it compares the shape of the
+profile and neither side's brightness scale: a twin whose albedo is a little off has the
+same exponent.  The profile residual adds where along the equator the shapes part, but a
+crater field or a dark patch on the equator moves it, so it is reported beside the
+exponent and not judged.
+
+**What the study covers.**  The study reads calibrated frames only, because its albedo
+and its fits need each pixel in I/F, and it leaves out moons under 10 px across.  Each
+instrument chapter of this guide (:doc:`instruments/instruments`) says whether its
+camera's frames enter the study, and so whether the body statistics (the limb peak, the
+rise width, the disc profile, and the law) are checked for that camera.  The default law is also untested on surfaces unlike the Saturnian icy moons,
+such as volcanic or rocky and icy ones; the one dark surface the study measures is
+Iapetus's dark terrain, on one frame.  The cohort does not hold a resolved frame of the
+Jovian moons, the Uranian and Neptunian moons, Charon, Phoebe, Janus, Helene, Telesto,
+or Daphnis.
+
+**Running the study for other bodies.**  The study measures every moon in view in every
+calibrated frame that the match's cohort holds.  Another body enters once the cohort holds
+frames of it.  Add the frames to the image library with their verified
+offsets, and add the camera to the simulator catalog's ``realism_cohort`` list if the
+camera is new (see :ref:`sim-realism-match`).  Then run the match for the instrument,
+and leave out the navigation pairs, which the study does not use, to save time:
+
+.. code-block:: bash
+
+   python -m util.sim_realism.sim_realism --instrument coiss_calib_nac --skip-fom7
+
+The match always measures the other figures of merit beside the study, so a run for one
+body also rewrites the record's other blocks for that instrument.  ``--skip-law-study``
+runs the match without the study.  The study leaves a body out
+unless its shape is regular, so a body whose shape is not a good ellipsoid needs a
+different treatment before the study can say anything about it.  A body whose surface
+holds two terrains of very different albedo needs an entry in
+``TWO_TONE_TERRAINS`` in ``util/sim_realism/sim_realism_body_facts.py``, and a planet
+whose main rings can hide a moon needs one in ``OCCULTING_RINGS`` there.  The run writes
+the study's figures to ``docs/simulator_report/_figures/`` and its ``law_study`` block
+to the record.  The unit tests of the study's helpers are in
+``util/sim_realism/tests/test_sim_realism_laws.py``.
+
+**What the study finds.**  On 2026-11-28 the study measured 27 discs on 23 frames
+between 1.5 and 136 degrees phase: 7 of Dione, 6 of Tethys, 5 of Mimas, 4 of Rhea, 3 of
+Enceladus, and Iapetus's dark terrain and its bright terrain once each.  It left out 93
+moons in view: 70 under 10 px across, 9 of irregular shape (Epimetheus, Hyperion,
+Pandora, and Prometheus), 5 whose shape is not known (Atlas, Calypso, and Pan), 3 whose
+disc is clipped, 4 Iapetus terrain caps that are not lit on the side in view, a Dione of
+which 18% of the lit disc lies in the frame, and a Mimas with 82 lit pixels clear of the
+limb and the terminator.
+The real discs' Minnaert exponent rises with phase, from 0.55 at 1.5 degrees to 0.97 at
+117 degrees, and the line the Minnaert twins take is ``k = 0.605 + 0.00272 a`` in phase
+``a`` in degrees.  The blend fitted to each disc follows McEwen's curve with an rms
+difference of 0.15 and a mean difference under 0.001.  Above 104 degrees, where
+McEwen's blend is 0, all five discs fit a blend between 0.02 and 0.13.
+
+Each law's median distance of its twins' exponent from the real one, and its median
+profile residual, by phase bin (12, 13, and 2 discs):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 12 12 12 12 12 12
+
+   * - Law
+     - below 60, k
+     - below 60, profile
+     - 60 to 120, k
+     - 60 to 120, profile
+     - above 120, k
+     - above 120, profile
+   * - Lambert
+     - 0.332
+     - 0.238
+     - 0.119
+     - 0.093
+     - 0.142
+     - 0.030
+   * - Lommel-Seeliger
+     - 0.132
+     - 0.075
+     - 0.223
+     - 0.108
+     - 0.052
+     - 0.015
+   * - lunar-Lambert (the default)
+     - 0.031
+     - 0.054
+     - 0.054
+     - 0.093
+     - 0.142
+     - 0.030
+   * - Minnaert, exponent from the line
+     - 0.020
+     - 0.058
+     - 0.064
+     - 0.110
+     - 0.107
+     - 0.024
+
+In both bins with a comparison the default agrees best with the real discs among the
+laws it separates from.  Below 60 degrees the band is 0.025, and Lambert and
+Lommel-Seeliger separate from the default; at 60 to 120 degrees the band is 0.046, and
+they separate again.  Minnaert's law with the fitted exponent does not separate from the
+default in either bin, so the record claims no order between those two.  Above 120
+degrees the two discs, Mimas at 126 and Tethys at 136 degrees, give no verdict.  There
+the default is Lambert's, and both discs fall more gently than it.  Over the pixels
+their twins also count, their exponents are 0.85 and 0.81, where the Lambert twins fit
+0.98 and 0.97.  Lommel-Seeliger's twin misses the Mimas disc by 0.10 and matches the
+Tethys disc to under 0.001.
+
+Those two crescents show why every fit of a disc reads the same pixels.  The Mimas disc
+is 55 px across, its real fit keeps only 176 pixels, and its twin's sphere does not
+count some of them.  Over all of its counted pixels the real disc fits 0.75, and over
+the pixels its twin also counts, 0.85.  In all, 44 of the study's 108 twins leave
+out some of their real disc's pixels.  Only these two discs' exponents move by more
+than 0.01 when they are fitted again, by +0.10 and -0.03; the clipped twins below move
+theirs by 0.005 to 0.008.
+
+Two discs' twins reach the camera's ceiling, both bright moons at low phase.  On the
+Enceladus frame at 21 degrees, of the 50,706 pixels the real fits count, the Lambert
+twin reads 12,057 at the ceiling, the Lommel-Seeliger twin 4,446, the default's 1,193,
+and the Minnaert twin 625.  Each of those twins is clipped by the real disc's test, so
+none of them gives a limb peak.  On the Tethys frame at 17 degrees the Lommel-Seeliger
+twin reads 2,018 of 57,044 pixels at the ceiling.  Every twin of each disc leaves out
+the pixels any one of them reads at the ceiling, so all four Enceladus twins are fitted
+without the Lambert twin's 12,057, and all four Tethys twins without the
+Lommel-Seeliger twin's 2,018.  Over those pixels the real exponents are 0.684 and 0.667,
+against 0.689 and 0.675 over every pixel the real fits count.
+
+The default law's disc-profile check: on the narrow-angle camera the twins' exponents
+differ from the real ones by a median of -0.017 below 60 degrees (11 discs, band 0.023)
+and +0.040 at 60 to 120 degrees (13 discs, band 0.046), both within their bands, the
+second close to its edge.  No bin lies outside its band.  The two discs above 120 degrees differ by +0.14, without a verdict, and
+the wide-angle camera's one disc by +0.06.
+
+By body, the default's median distance is 0.03 for Mimas and Enceladus, 0.05 for Dione and
+Tethys, and 0.08 for Rhea, where Lommel-Seeliger's is 0.12 and Minnaert's 0.08.  Two of
+Rhea's four discs are small ones at 74 and 92 degrees that fall more gently than their
+twins.  Iapetus's dark terrain, at 58 degrees, follows the default as the icy moons do:
+its exponent is 0.85, and the default's twin misses by 0.04.  Its bright terrain, at 81
+degrees, falls more steeply than any twin: its exponent is 1.10, and the twins miss by
+0.09 (Lambert), 0.21 (the default), 0.27 (Minnaert), and 0.41 (Lommel-Seeliger).  For caps
+of 20 to 50 degrees the bright terrain's exponent stays between 1.06 and 1.10 and the dark
+terrain's between 0.84 and 0.93, so the caps' size does not decide either finding.  One
+frame of each terrain cannot say what law it follows.
+
+The limb peaks of the twins, where the realism match measured the real limb, bin as the
+limb-peak check does, and each twin's limb is measured over the directions whose peaks its
+real limb's fit kept.  In the two bins with a verdict, the real medians are -0.12 px
+(phase below 60 degrees, over 400 px, 3 limbs, band 0.24 px) and +0.09 px (60 to 120
+degrees, 100 to 400 px, 3 limbs, band 0.10 px, the band's floor).  The default's twins
+give +0.05 and +0.10 px; Lambert's -0.34 and +0.10 px; Minnaert's +0.02 and +0.14 px; and
+Lommel-Seeliger's +0.06 and +0.19 px.  Every law lies within both bands.  In the second
+bin the default's and Lambert's medians lie 0.006 px from the real median, Minnaert's
+0.045 px, and Lommel-Seeliger's 0.096 px, 0.004 px inside the band's edge; with three
+limbs and the band at its floor, the bin cannot rank the laws.  The study's first bin
+holds a different set of limbs from the matched check's: the twins of the Enceladus frame
+at 21 degrees are clipped, so the bin holds the Tethys limb at 1.5 degrees, the wide-angle
+camera's Rhea limb, and the Enceladus limb at 40 degrees, and its median is the Rhea
+limb's.  The study's twins sit where the real disc does and are lit from the real
+direction, as the realism match's matched frames are, and on the three limbs of the second
+bin the default's twins and the matched frames agree to within 0.02 px.  On the two limbs
+under 100 px across below 60 degrees, without a verdict, the real median is +0.04 px, the
+default's +0.01 px, and Lambert's -0.54 px.
+
+The JSON summary's ``law_study`` block holds every disc's fits and twins, the moons left
+out with their reasons, and the statistics by phase bin, body, and limb bin.  The
+simulator report shows the figures.
 
 The FOM 7 firewall
 ------------------
@@ -6148,27 +6774,25 @@ navigation pairs.  Outputs:
 
 - ``docs/simulator_report/_figures/realism_<instrument>_<fom>.png`` --
   the overlay figures embedded in the simulator report;
-- ``tests/integration/realism_results/realism_summary.json`` -- the
+- ``util/sim_realism/realism_results/realism_summary.json`` -- the
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
 The full-cohort run takes 32 to 54 minutes on a workstation with local
-holdings.  The committed record of 2026-11-25 took 54 minutes (3,259 seconds).
+holdings without the photometric-law study, and 45 to 90 minutes with it: the
+committed record of 2026-11-27 took 49 minutes (2,941 seconds), with other heavy runs
+sharing the machine.  ``--skip-law-study`` leaves the study out.
 That includes building the 19 star frames' catalog star lists, which takes
 about one minute (62 seconds measured on 2026-11-15, 45 of them on
 W1580760393).  The cost is
 dominated by the navigator's feature extraction on the real frames and the
 full-size matched renders.  ``--skip-fom7`` saves about 17% -- the navigation
 pairs are a handful of frames per instrument, not a large share of the
-cost.  ``tests/integration/test_sim_realism.py`` carries the
-``sim_integration`` tests, which the default selection runs. They check that the
+cost.  A run rewrites the record (:ref:`sim-realism-record`), and a run that
+is not meant to replace it is not committed.
+The unit tests of the match's helpers (``util/sim_realism/tests/``) check that the
 matched scenes are valid for every instrument and that the sim side is
-deterministic.
-``tests/integration/test_sim_realism_smoke.py`` carries the end-to-end smoke on
-the smallest cohort, and ``tests/integration/test_sim_realism_regression.py``
-carries the regression check (:ref:`sim-realism-regression`). The smoke test and
-the regression check's fresh match read real frames and carry only the
-``integration`` marker.
+deterministic.  CI does not run them.
 
 The per-instrument match quality, the figures, and the known-gaps list
 live in the simulator report's realism section

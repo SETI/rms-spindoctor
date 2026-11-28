@@ -418,6 +418,11 @@ as a rate until a non-star frame joins the library.
 what the kernel describes. The binned frames the cohort holds are measured but
 cannot check it.
 
+**Body statistics.** The cohort's LORRI frames are raw DN, and the photometric-law
+study reads only frames calibrated to I/F (see :ref:`sim-realism-law-study`), so their
+moons do not enter it. For this camera the body statistics (the limb peak, the rise
+width, the disc profile, and the law) are unchecked.
+
 Image library and test coverage
 ===============================
 
@@ -450,35 +455,37 @@ instead reaches half the camera's search window.
   answer lands 0.41 to 0.43 px off over 24 draws, and 0.01 px off without the
   twist.
 
-**Mixed-defect guard scene.** ``nhlorri_moon_raw`` in the ``mixed_defects`` scene
-class (see :ref:`sim-mixed-defects`) is a raw unbinned frame of a moon 197 px
-across, following a real Jupiter-flyby frame taken at 5 ms. It carries the
-camera's chain, including the frame-transfer smear, plus the housekeeping header
-at the start of row 0, the fixed pattern, and radiation hits. Simulated brightness
-has no shared scale with real frames, so the scene runs 85 ms, where the middle of
-the simulated disc is 8% brighter than the real one. The rate of radiation hits is
-scaled down by the same factor, and about 16 hits land in the frame. The scene sets
-its own smear times, so that each row above and below the disc carries the share of
-its column's charge that the real frame shows: 2.115e-3 above and 1.937e-3 below.
-With the camera's extra 0.63 ms the frame collects light for 85.63 ms, and the
-times that give those shares are 0.1855 s above the disc and 0.1698 s below it.
-The simulated rows carry 2.113e-3 and 1.934e-3. The extra time stays 0.63 ms
-rather than growing with the exposure, since it belongs to the camera. The
+**Mixed-defect guard scene.** ``nhlorri_moon_raw`` in the ``mixed_defects`` scene class
+(see :ref:`sim-mixed-defects`) is a raw unbinned frame of a moon 197 px across, following
+a real Jupiter-flyby frame taken at 5 ms. It carries the camera's chain, including the
+frame-transfer smear, plus the housekeeping header at the start of row 0, the fixed
+pattern, and radiation hits. Simulated brightness has no shared scale with real frames, so
+the scene runs 85 ms, and its body is set as bright as the real one: the brightest 1% of
+the disc reads what the real frame's does. The middle of the disc reads 15% more than the
+real one's, because the real Europa brightens toward its sunlit limb more than the
+lunar-Lambert law does. The rate of radiation hits is scaled down by the exposure's factor, and
+about 16 hits land in the frame. The scene sets its own smear times, so that each row
+above and below the disc carries the share of its column's charge that the real frame
+shows: 2.115e-3 above and 1.937e-3 below. With the camera's extra 0.63 ms the frame
+collects light for 85.63 ms, and the times that give those shares are 0.1855 s above the
+disc and 0.1698 s below it. The simulated rows carry 2.113e-3 and 1.934e-3. The extra time
+stays 0.63 ms rather than growing with the exposure, since it belongs to the camera. The
 simulated header holds values up to 255, where the real one reaches 4,038 DN.
 
-The fused answer lands 0.11 to 0.12 px off over 24 draws, at medium confidence,
-from the disc correlation and the limb fit together. The disc correlation lands
-0.18 to 0.19 px off without flagging its answer, with the smear or without it.
-Without the twist it lands 0.004 to 0.022 px off. The limb fit lands 0.25 to
-0.32 px off, and 0.43 to 0.48 px without the twist. The blob technique lands 6.8
-to 7.1 px off without flagging it, pulled by the smear columns, and 0.16 to 0.19 px off
-without the smear. The simulated smear is a step at each column's centroid, where
-the real smear builds up across the disc, so part of that pull may be the
-simulator's. The fixed pattern and the radiation hits are realistic, and each
-moves the fused answer by at most 0.01 px, so the scene shows that the navigator
-is unaffected by them. The simulated header also moves it by at most 0.01 px,
-but its values reach only 255 DN where the real header reaches 4,038 DN, so the
-scene shows only that the navigator ignores this approximation of the header.
+The fused answer lands 0.55 px off over 24 draws, at medium confidence, from the disc
+correlation and the limb fit together, toward the Sun, where the navigator's Lambert
+template meets the lunar-Lambert surface (see :ref:`sim-photometric-laws`). The disc
+correlation lands 0.64 to 0.65 px off without flagging its answer, and the limb fit 0.29
+to 0.30 px off. On a Lambert surface the disc correlation landed 0.18 to 0.19 px off, with
+the smear or without it, and 0.004 to 0.022 px off without the twist. The blob technique
+lands 7.3 to 7.6 px off without flagging it, pulled by the smear columns. On a Lambert
+surface it landed 6.8 to 7.1 px off, and 0.16 to 0.19 px off without the smear. The simulated
+smear is a step at each column's centroid, where the real smear builds up across the disc,
+so part of that pull may be the simulator's. The fixed pattern and the radiation hits are
+realistic, and each moves the fused answer by at most 0.01 px, so the scene shows that the
+navigator is unaffected by them. The simulated header also moves it by at most 0.01 px,
+but its values reach only 255 DN where the real header reaches 4,038 DN, so the scene
+shows only that the navigator ignores this approximation of the header.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_newhorizons_lorri.py`` pins
 the star limit of each binning mode at 1 s, 2.5 mag per factor of ten in exposure,
