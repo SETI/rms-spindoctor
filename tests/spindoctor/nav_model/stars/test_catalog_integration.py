@@ -643,8 +643,8 @@ def test_reduce_catalogs_does_not_flag_genuine_faint_star(
 ) -> None:
     """A genuine V7 to V8 star Tycho-2 covers is not flagged saturated.
 
-    The UCAC4 reading agrees with Tycho-2, so the star is neither corrected
-    nor flagged even though YBSC (empty here) does not reach it.
+    The UCAC4 reading agrees with Tycho-2, so the star takes Tycho-2's V and
+    is not flagged, even though YBSC (empty here) does not reach it.
     """
     install_fake_catalogs(
         monkeypatch,

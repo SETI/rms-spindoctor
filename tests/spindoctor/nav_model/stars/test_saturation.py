@@ -42,8 +42,8 @@ def _star(**kwargs: object) -> MutableStar:
 
 
 def _ucac4(ra: float, dec: float, vmag: float) -> MutableStar:
-    """A UCAC4 record with proper-motion position pinned to ``(ra, dec)``."""
-    return _star(catalog_name='ucac4', ra_pm=ra, dec_pm=dec, vmag=vmag, dn=1.0)
+    """A UCAC4 record at ``(ra, dec)`` whose aperture magnitude and V are both ``vmag``."""
+    return _star(catalog_name='ucac4', ra_pm=ra, dec_pm=dec, vmag=vmag, catalog_vmag=vmag, dn=1.0)
 
 
 def _ybsc(ra: float, dec: float, vmag: float, *, b_v: float = 0.0) -> MutableStar:
@@ -78,9 +78,25 @@ def _tycho2(ra: float, dec: float, vmag: float, *, spectral_class: str = 'G0') -
 _DISPLACED_RAD = math.radians(9.0 / 3600.0)
 
 
-def test_saturation_limit_is_bright_end() -> None:
-    """The documented limit sits in the bright regime UCAC4 mishandles."""
-    assert UCAC4_SATURATION_VMAG_LIMIT == 8.0
+def test_correct_star_photometry_corrects_star_just_brighter_than_limit() -> None:
+    """A star whose aperture magnitude is just brighter than the limit takes Tycho-2's V."""
+    star = _ucac4(*_ETA_TAU, UCAC4_SATURATION_VMAG_LIMIT - 0.2)
+    ref = _tycho2(*_ETA_TAU, UCAC4_SATURATION_VMAG_LIMIT - 0.6)
+    correct_star_photometry(
+        [star], [ref], match_radius_rad=_MATCH_RAD, duplicate_vmag=_DVMAG, catalog_order=_ORDER
+    )
+    assert star.vmag == pytest.approx(UCAC4_SATURATION_VMAG_LIMIT - 0.6)
+
+
+def test_correct_star_photometry_limit_reads_catalog_magnitude() -> None:
+    """The limit is compared with the aperture magnitude, not the Johnson V."""
+    star = _ucac4(*_ETA_TAU, UCAC4_SATURATION_VMAG_LIMIT - 0.3)
+    star.catalog_vmag = UCAC4_SATURATION_VMAG_LIMIT + 0.1
+    ref = _tycho2(*_ETA_TAU, UCAC4_SATURATION_VMAG_LIMIT - 0.6)
+    correct_star_photometry(
+        [star], [ref], match_radius_rad=_MATCH_RAD, duplicate_vmag=_DVMAG, catalog_order=_ORDER
+    )
+    assert star.photometry_corrected is False
 
 
 def test_correct_star_photometry_replaces_saturated_vmag() -> None:
@@ -208,12 +224,12 @@ def test_correct_star_photometry_skips_ybsc_records() -> None:
 
 def test_correct_star_photometry_respects_limit_boundary() -> None:
     """A star exactly at the limit is not corrected (strict inequality)."""
-    star = _ucac4(*_ETA_TAU, 8.0)
+    star = _ucac4(*_ETA_TAU, UCAC4_SATURATION_VMAG_LIMIT)
     ref = _ybsc(*_ETA_TAU, 3.0)
     correct_star_photometry(
         [star], [ref], match_radius_rad=_MATCH_RAD, duplicate_vmag=_DVMAG, catalog_order=_ORDER
     )
-    assert star.vmag == pytest.approx(8.0)
+    assert star.vmag == pytest.approx(UCAC4_SATURATION_VMAG_LIMIT)
 
 
 def test_correct_star_photometry_collapses_saturated_ucac4_onto_ybsc_twin() -> None:
@@ -273,7 +289,13 @@ def test_correct_star_photometry_collapses_revealed_tycho2_duplicate() -> None:
 def test_correct_star_photometry_revealed_duplicate_inherits_name() -> None:
     """The surviving twin inherits the dropped record's catalog name."""
     ucac4 = _star(
-        catalog_name='ucac4', ra_pm=_ETA_TAU[0], dec_pm=_ETA_TAU[1], vmag=6.88, name='27Tau', dn=1.0
+        catalog_name='ucac4',
+        ra_pm=_ETA_TAU[0],
+        dec_pm=_ETA_TAU[1],
+        vmag=6.88,
+        catalog_vmag=6.88,
+        name='27Tau',
+        dn=1.0,
     )
     tycho2 = _star(catalog_name='tycho2', ra_pm=_ETA_TAU[0], dec_pm=_ETA_TAU[1], vmag=3.40, name='')
     ref = _ybsc(*_ETA_TAU, 3.40)
@@ -295,7 +317,14 @@ def test_correct_star_photometry_keeps_higher_precedence_when_both_corrected() -
     higher-precedence catalog (``ucac4`` over the unranked ``gaia``).
     """
     ucac4 = _ucac4(*_ETA_TAU, 6.88)
-    gaia = _star(catalog_name='gaia', ra_pm=_ETA_TAU[0], dec_pm=_ETA_TAU[1], vmag=6.9, dn=1.0)
+    gaia = _star(
+        catalog_name='gaia',
+        ra_pm=_ETA_TAU[0],
+        dec_pm=_ETA_TAU[1],
+        vmag=6.9,
+        catalog_vmag=6.9,
+        dn=1.0,
+    )
     ref_a = _ybsc(*_ETA_TAU, 3.40)
     ref_b = _ybsc(_ETA_TAU[0], _ETA_TAU[1] + math.radians(0.3 / 3600.0), 3.41)
     out = correct_star_photometry(
@@ -310,7 +339,14 @@ def test_correct_star_photometry_keeps_higher_precedence_when_both_corrected() -
 
 def test_correct_star_photometry_both_corrected_prefers_precedence_regardless_of_order() -> None:
     """A corrected higher-precedence twin survives even when listed second."""
-    gaia = _star(catalog_name='gaia', ra_pm=_ETA_TAU[0], dec_pm=_ETA_TAU[1], vmag=6.9, dn=1.0)
+    gaia = _star(
+        catalog_name='gaia',
+        ra_pm=_ETA_TAU[0],
+        dec_pm=_ETA_TAU[1],
+        vmag=6.9,
+        catalog_vmag=6.9,
+        dn=1.0,
+    )
     ucac4 = _ucac4(*_ETA_TAU, 6.88)
     ref_a = _ybsc(*_ETA_TAU, 3.40)
     ref_b = _ybsc(_ETA_TAU[0], _ETA_TAU[1] + math.radians(0.3 / 3600.0), 3.41)
@@ -423,7 +459,7 @@ def test_nearest_within_matches_across_ra_seam() -> None:
 
 def test_correct_star_photometry_matches_across_ra_seam() -> None:
     """A saturated star is corrected against a YBSC twin across the RA seam."""
-    star = _star(catalog_name='ucac4', ra_pm=1e-6, dec_pm=0.0, vmag=6.68, dn=1.0)
+    star = _star(catalog_name='ucac4', ra_pm=1e-6, dec_pm=0.0, vmag=6.68, catalog_vmag=6.68, dn=1.0)
     ref = _star(
         catalog_name='ybsc',
         ra_pm=2.0 * math.pi - 1e-6,
@@ -484,10 +520,10 @@ def test_correct_saturated_vmags_does_not_double_count_uncorrected_match() -> No
     The catalog value sits at/above the limit (so it is left uncorrected),
     but its YBSC counterpart must not be appended a second time.
     """
-    catalog = [(*_ETA_TAU, 8.5)]
+    catalog = [(*_ETA_TAU, UCAC4_SATURATION_VMAG_LIMIT + 0.5)]
     ybsc = [(*_ETA_TAU, 6.4)]
     out = correct_saturated_vmags(catalog, ybsc, [], match_radius_rad=_MATCH_RAD)
-    assert out == [pytest.approx(8.5)]
+    assert out == [pytest.approx(UCAC4_SATURATION_VMAG_LIMIT + 0.5)]
 
 
 def test_correct_saturated_vmags_is_sorted() -> None:
@@ -514,7 +550,7 @@ def test_correct_star_photometry_corrects_against_tycho2_reference() -> None:
 
 
 def test_correct_star_photometry_tycho2_correction_fakes_color() -> None:
-    """A Tycho-2 correction fakes the color from spectral class (faked flag set)."""
+    """A Tycho-2 correction of a star with no measured color fakes one from its class."""
     star = _ucac4(*_ETA_TAU, 7.7)
     star.spectral_class = 'G0'
     ref = _tycho2(*_ETA_TAU, 6.9)
@@ -543,12 +579,24 @@ def test_correct_star_photometry_tycho2_reference_never_a_candidate() -> None:
     assert tycho2.photometry_corrected is False
 
 
+def test_correct_star_photometry_tycho2_keeps_measured_color() -> None:
+    """A star corrected against Tycho-2 keeps the color its catalog measured."""
+    star = _ucac4(*_ETA_TAU, 9.4)
+    star.johnson_mag_v = 9.3
+    star.johnson_mag_b = 10.5
+    ref = _tycho2(*_ETA_TAU, 8.9)
+    correct_star_photometry(
+        [star], [ref], match_radius_rad=_MATCH_RAD, duplicate_vmag=_DVMAG, catalog_order=_ORDER
+    )
+    assert star.johnson_mag_b == pytest.approx(10.1)
+
+
 def test_correct_star_photometry_genuine_faint_star_not_flagged() -> None:
     """A genuine V7 to V8 star matching Tycho-2 is not flagged saturated.
 
-    The star is beyond YBSC completeness but agrees with its Tycho-2
-    reference, so it is neither corrected nor flagged: using Tycho-2 as a
-    reference is what keeps the flag off a star that is not saturated.
+    The star is beyond YBSC completeness but matches its Tycho-2 reference,
+    so it is not flagged: using Tycho-2 as a reference is what keeps the flag
+    off a star that is not saturated.
     """
     star = _ucac4(*_ETA_TAU, 7.3)
     ref = _tycho2(*_ETA_TAU, 7.3)
@@ -558,14 +606,14 @@ def test_correct_star_photometry_genuine_faint_star_not_flagged() -> None:
     assert star.photometry_saturated is False
 
 
-def test_correct_star_photometry_genuine_faint_star_keeps_vmag() -> None:
-    """A genuine V7 to V8 star that agrees with Tycho-2 keeps its magnitude."""
+def test_correct_star_photometry_agreeing_star_takes_reference_vmag() -> None:
+    """A bright star that already agrees with Tycho-2 still takes Tycho-2's V."""
     star = _ucac4(*_ETA_TAU, 7.3)
-    ref = _tycho2(*_ETA_TAU, 7.3)
+    ref = _tycho2(*_ETA_TAU, 7.2)
     correct_star_photometry(
         [star], [ref], match_radius_rad=_MATCH_RAD, duplicate_vmag=_DVMAG, catalog_order=_ORDER
     )
-    assert star.photometry_corrected is False
+    assert star.vmag == pytest.approx(7.2)
 
 
 # --------------------------------------------------------------------------
@@ -770,19 +818,15 @@ def test_correct_saturated_vmags_collapses_displaced_double_count() -> None:
     assert out == [pytest.approx(2.87)]
 
 
-def test_correct_saturated_vmags_keeps_reading_for_small_gap() -> None:
-    """A small-gap match keeps the catalog reading, matching the reduction.
+def test_correct_saturated_vmags_adopts_reference_for_small_gap() -> None:
+    """A small-gap match takes the reference magnitude, matching the reduction.
 
-    The catalog value agrees with the reference to within the no-op band, so
-    it is not saturated: the screen keeps its own magnitude rather than
-    adopting the reference (exactly as ``correct_star_photometry`` leaves the
-    record untouched), and the consumed reference is not counted a second
-    time.
+    The consumed reference is not counted a second time.
     """
     catalog = [(*_ETA_TAU, 7.5)]
     tycho2 = [(*_ETA_TAU, 7.2)]
     out = correct_saturated_vmags(catalog, [], tycho2, match_radius_rad=_MATCH_RAD)
-    assert out == [pytest.approx(7.5)]
+    assert out == [pytest.approx(7.2)]
 
 
 def test_correct_saturated_vmags_appends_tycho2_only_star() -> None:
