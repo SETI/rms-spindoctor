@@ -504,7 +504,7 @@ Configuration
 The technique's ``tuning`` keys live in ``techniques.star_unique_match.tuning`` in
 ``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
 the schema core parses them into
-:class:`~spindoctor.nav_technique.star_tuning.StarUniqueMatchTuning` and refuses a value of the
+:class:`~spindoctor.nav_technique.technique_tuning.StarUniqueMatchTuning` and refuses a value of the
 wrong type or out of range. None of them has a default in the code, so the values below
 are the ones in the packaged file.
 

@@ -479,7 +479,7 @@ Body-shape catalog
 ``src/spindoctor/config_files/config_220_body_shape.yaml`` carries the per-body
 :class:`~spindoctor.nav_model.body_shape.BodyShape` overrides under a ``body_shape`` mapping keyed by
 upper-case SPICE body name. The loader parses each entry into a
-:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`. An entry may set any
+:class:`~spindoctor.config.sections_models.BodyShapeEntry`. An entry may set any
 subset of ``ellipsoid_rms_residual_km``, ``crater_scale_km``, ``albedo_variation``,
 ``spice_orbital_residual_km``, ``min_blob_diameter_px``, and ``shape_class_hint``. For a
 key that the entry leaves out, :func:`~spindoctor.nav_model.body_shape.load_body_shape`

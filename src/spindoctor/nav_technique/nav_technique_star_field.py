@@ -82,8 +82,8 @@ from spindoctor.nav_technique.nav_technique import (
     log_confidence_breakdown,
     search_window_for_obs,
 )
-from spindoctor.nav_technique.star_tuning import StarFieldTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import StarFieldTuning
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 

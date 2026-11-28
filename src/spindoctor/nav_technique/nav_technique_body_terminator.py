@@ -35,7 +35,6 @@ from spindoctor.nav_technique.dt_fitting import (
     find_secondary_dt_minimum,
     lm_subpixel_refine,
 )
-from spindoctor.nav_technique.dt_tuning import DTTuning
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
@@ -45,6 +44,7 @@ from spindoctor.nav_technique.nav_technique import (
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import DTTuning
 from spindoctor.schema import SCHEMA_CONFIG, NonNeg, Positive
 from spindoctor.support.types import NDArrayFloatType
 

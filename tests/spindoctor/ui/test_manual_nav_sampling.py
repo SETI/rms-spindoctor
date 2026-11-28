@@ -1,4 +1,4 @@
-"""Tests for the manual navigation dialog's cursor sampling.
+"""Tests for the manual navigation dialog's cursor sampling and automatic match.
 
 The dialog prints a continuous cursor position and, beside it, the image and
 model values at that position.  The position is pixel corner, because that is
@@ -6,13 +6,19 @@ what a Qt event position and the geometry layer both state, while the array it
 samples is addressed pixel centric, so the sample has to be taken at the place
 the printed number names and nowhere else.
 
+The automatic match is driven on a stand-in for the dialog, so no window is built.
+
 Qt runs headless (offscreen platform).
 """
 
 import os
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+from tests.spindoctor.conftest import OVERRIDDEN_UPSAMPLE_FACTOR
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
@@ -21,6 +27,8 @@ try:
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6 not available: {exc}', allow_module_level=True)
 
+import spindoctor.ui.manual_nav_dialog as dialog_module
+from spindoctor.config import Config
 from spindoctor.ui.manual_nav_dialog import _bilinear_interpolate_fov
 
 
@@ -65,3 +73,29 @@ def test_last_half_pixel_holds_the_edge_value() -> None:
     """Inside the frame's last half pixel the edge value is held."""
     arr = _ramp(6, 7)
     assert _bilinear_interpolate_fov(arr, 5.9, 6.9) == pytest.approx(506.0, abs=1e-9)
+
+
+def test_auto_match_reads_the_configured_upsample_factor(
+    monkeypatch: pytest.MonkeyPatch,
+    upsample_override_config: Config,
+) -> None:
+    """The automatic match correlates at the upsample factor the configuration sets."""
+    seen: list[int] = []
+
+    def _record(**kwargs: Any) -> dict[str, Any]:
+        seen.append(kwargs['upsample_factor'])
+        return {'offset': (1.0, 2.0)}
+
+    monkeypatch.setattr(dialog_module, 'navigate_with_pyramid_kpeaks', _record)
+    stand_in = SimpleNamespace(
+        _config=upsample_override_config,
+        _img_ext=np.zeros((8, 8)),
+        _model_img_ext=np.zeros((8, 8)),
+        _model_mask_ext=np.zeros((8, 8), dtype=bool),
+        _obs=MagicMock(),
+        _spin_dv=MagicMock(),
+        _spin_du=MagicMock(),
+        _refresh_overlay=MagicMock(),
+    )
+    dialog_module.ManualNavDialog._on_auto(stand_in)  # type: ignore[arg-type]
+    assert seen == [OVERRIDDEN_UPSAMPLE_FACTOR]
