@@ -102,6 +102,12 @@ def test_a_kernel_star_is_the_simulators_render() -> None:
     np.testing.assert_allclose(drawn, rendered, rtol=0.0, atol=1e-12)
 
 
+def test_a_kernel_star_keeps_the_light_at_the_edge_of_its_response() -> None:
+    """A star whose response edge falls between detector pixels still sums to 1."""
+    image = kernel_star_image(KERNEL, 10, 4.5, 4.5, truncation_px=1, oversample=4)
+    assert image.sum() == pytest.approx(1.0, abs=1e-9)
+
+
 def test_the_fit_recovers_a_planted_kernel() -> None:
     """Noisy stars drawn with a known core and wing give that core and wing back."""
     cutouts = _stars(KERNEL, flux=4000.0, gain_e_per_dn=1.0e9, seed=1258)

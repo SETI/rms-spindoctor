@@ -791,7 +791,7 @@ def kernel_star_image(
     iu = oversample * (index - center_u) + middle
     gv, gu = np.meshgrid(iv, iu, indexing='ij')
     image: FloatArray = scipy.ndimage.map_coordinates(
-        response, [gv, gu], order=1, mode='constant', cval=0.0
+        response, [gv, gu], order=1, mode='grid-constant', cval=0.0
     )
     return image
 
