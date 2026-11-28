@@ -13,11 +13,12 @@ seed), turning one sweep point into a *population* of frames -- the raw material
 an estimator-validation solve needs.  Each seed's outcome is its own row, tagged
 with its seed; the default (1 seed) is an ordinary single-realization sweep.
 
-This module is the importable core (schema, loader, runner); ``sim_sweep_runner``
-is the ``python -m`` entry point and ``test_sim_sweeps`` asserts the per-sweep
-invariants.  The harness is in-process and needs no external holdings, but the
-navigation it drives carries the usual sub-millipixel cross-process jitter, so
-tests assert trends and bounds rather than exact values.
+This module is the importable core (schema, loader, runner);
+``util/sim_reports/sim_sweep_runner.py`` is the ``python -m`` entry point and
+``test_sim_sweeps`` asserts the per-sweep invariants.  The harness is in-process and
+needs no external holdings, but the navigation it drives carries the usual
+sub-millipixel cross-process jitter, so tests assert trends and bounds rather than
+exact values.
 """
 
 from __future__ import annotations

@@ -11,7 +11,7 @@ choice's lower-envelope behavior can be read off directly.
 
 Run with::
 
-    PYTHONPATH=. python -m tests.integration.star_snr_characterization
+    PYTHONPATH=. python -m util.sim_reports.star_snr_characterization
 
 The figures feed the simulator performance report's star-field centroiding
 section.  A real image's true offset is unknown, so the whole characterization is
@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from tests.integration.checkout_guard import require_checkout_package
 
 import spindoctor.nav_technique.nav_technique_star_field as star_field_mod
 from spindoctor.nav_model import build_models_for_obs
@@ -33,10 +34,9 @@ from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_technique.nav_technique_star_field import StarFieldFromCatalogNav
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene.io import load_sim_scene
-from tests.integration.checkout_guard import require_checkout_package
 
 _TECHNIQUE = 'StarFieldFromCatalogNav'
-_SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
+_SCENES_ROOT = Path(__file__).parents[2] / 'tests' / 'integration' / 'sim_scenes'
 _BASE_SCENE = _SCENES_ROOT / 'algorithmic_invariants' / 'planted_offset_star_field_bright.yaml'
 _FIGURES_ROOT = Path(__file__).parent.parent.parent / 'docs' / 'simulator_report' / '_figures'
 

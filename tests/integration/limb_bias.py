@@ -6,30 +6,20 @@ transform.  A systematic sub-pixel error in that fit does not average out
 across frames, so it sets the accuracy floor for every limb-navigated
 image.  This module measures that error under controlled conditions.
 
-Two independent ground-truth channels are supported:
+The ground truth is the simulator's planted offset.  A sim scene renders a body at
+``center + planted_offset``; the simulated body NavModel predicts the
+unshifted geometry, so the navigator should recover ``planted_offset``
+exactly.  The simulator sets the spacecraft position, the body ephemeris,
+and the pointing by construction, so a residual limb-fit error on a sim
+scene carries no spacecraft-position and no body-ephemeris component.
+What it does carry is the limb fit read against the scene description the
+renderer and the model both work from: it is a difference between two
+sides of one description, so a coordinate convention the two apply alike
+cancels exactly and cannot show up here.
+:func:`measure_sim_limb_bias` returns the signed per-axis error against
+that planted truth.
 
-* Simulator planted truth.  A sim scene renders a body at
-  ``center + planted_offset``; the simulated body NavModel predicts the
-  unshifted geometry, so the navigator should recover ``planted_offset``
-  exactly.  The simulator sets the spacecraft position, the body ephemeris,
-  and the pointing by construction, so a residual limb-fit error on a sim
-  scene carries no spacecraft-position and no body-ephemeris component.
-  What it does carry is the limb fit read against the scene description the
-  renderer and the model both work from: it is a difference between two
-  sides of one description, so a coordinate convention the two apply alike
-  cancels exactly and cannot show up here.
-  :func:`measure_sim_limb_bias` returns the signed per-axis error against
-  that planted truth.
-
-* Real-frame star navigation.  On a real frame that also carries several
-  navigable stars, the star techniques provide an independent, usually more
-  precise, offset.  The limb-minus-star gap on a real frame mixes the
-  limb-fit residual with any spacecraft-position or body-ephemeris error,
-  so it must be read together with the sim measurement above.
-  :func:`measure_real_limb_vs_star` returns both offsets and their signed
-  gap.
-
-A third function, :func:`renderer_centroid_offset`, measures the simulator's
+A second function, :func:`renderer_centroid_offset`, measures the simulator's
 own body renderer against the center it was asked for, which anchors the
 renderer side on its own and needs no agreement from the model side.  It
 calls the renderer directly and never touches the navigation code path.
@@ -41,7 +31,6 @@ limb-fit error is ``recovered_offset - planted_offset``.
 
 from __future__ import annotations
 
-import copy
 import math
 from dataclasses import dataclass
 from typing import Any
@@ -55,23 +44,13 @@ from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ell
 
 __all__ = [
     'LimbBiasSample',
-    'RealLimbStarSample',
     'RendererCentroidCheck',
     'build_body_scene',
-    'measure_real_limb_vs_star',
     'measure_sim_limb_bias',
     'renderer_centroid_offset',
     'ridge_inset_phase_zero',
+    'technique_offset',
 ]
-
-# Star technique names used as the independent real-frame ground truth,
-# most precise first.  The first one that produces a non-spurious result on a
-# frame is taken as that frame's star reference offset.
-_STAR_TECHNIQUES: tuple[str, ...] = (
-    'StarRefineNav',
-    'StarUniqueMatchNav',
-    'StarFieldFromCatalogNav',
-)
 
 
 @dataclass(frozen=True)
@@ -98,34 +77,6 @@ class LimbBiasSample:
         if self.error_vu is None:
             return None
         return math.hypot(self.error_vu[0], self.error_vu[1])
-
-
-@dataclass(frozen=True)
-class RealLimbStarSample:
-    """Limb-versus-star offset comparison on a single real frame.
-
-    Attributes:
-        image_id: Short image identifier.
-        limb_offset_vu: ``BodyLimbNav`` offset, or ``None``.
-        star_offset_vu: Independent star-technique offset, or ``None``.
-        star_technique: Name of the star technique that supplied the
-            reference, or ``None``.
-        gap_vu: Signed ``limb - star`` per axis, or ``None`` when either
-            offset is missing.
-    """
-
-    image_id: str
-    limb_offset_vu: tuple[float, float] | None
-    star_offset_vu: tuple[float, float] | None
-    star_technique: str | None
-    gap_vu: tuple[float, float] | None
-
-    @property
-    def gap_mag_px(self) -> float | None:
-        """Euclidean magnitude of the limb-minus-star gap, or ``None``."""
-        if self.gap_vu is None:
-            return None
-        return math.hypot(self.gap_vu[0], self.gap_vu[1])
 
 
 @dataclass(frozen=True)
@@ -228,7 +179,7 @@ def _navigate(sim_params: dict[str, Any], only_techniques: str) -> Any:
     return orchestrator.navigate(obs)
 
 
-def _technique_offset(result: Any, technique: str) -> tuple[float, float] | None:
+def technique_offset(result: Any, technique: str) -> tuple[float, float] | None:
     """Return the non-spurious offset for ``technique``, or ``None``."""
     for entry in result.per_technique:
         if entry.technique_name == technique and not entry.spurious:
@@ -257,7 +208,7 @@ def measure_sim_limb_bias(sim_params: dict[str, Any]) -> LimbBiasSample:
     """
     planted = (float(sim_params.get('offset_v', 0.0)), float(sim_params.get('offset_u', 0.0)))
     result = _navigate(sim_params, 'BodyLimbNav')
-    recovered = _technique_offset(result, 'BodyLimbNav')
+    recovered = technique_offset(result, 'BodyLimbNav')
     spurious = _technique_is_spurious(result, 'BodyLimbNav')
     if recovered is None:
         return LimbBiasSample(
@@ -272,44 +223,6 @@ def measure_sim_limb_bias(sim_params: dict[str, Any]) -> LimbBiasSample:
         recovered_offset_vu=recovered,
         error_vu=error,
         spurious=spurious,
-    )
-
-
-def measure_real_limb_vs_star(obs: Any, image_id: str) -> RealLimbStarSample:
-    """Compare the limb and star offsets on one navigated real observation.
-
-    Runs the full technique ensemble once and reads the ``BodyLimbNav``
-    offset and the most precise available star-technique offset from the same
-    navigation, so both are measured against the identical image geometry.
-
-    Parameters:
-        obs: A real :class:`ObsSnapshotInst` already built from an image.
-        image_id: Short identifier for reporting.
-
-    Returns:
-        A :class:`RealLimbStarSample` carrying both offsets and their signed
-        gap.
-    """
-    result = NavOrchestrator(
-        build_models_for_obs(obs), only_models='*', only_techniques='*'
-    ).navigate(obs)
-    limb = _technique_offset(result, 'BodyLimbNav')
-    star: tuple[float, float] | None = None
-    star_name: str | None = None
-    for name in _STAR_TECHNIQUES:
-        star = _technique_offset(result, name)
-        if star is not None:
-            star_name = name
-            break
-    gap: tuple[float, float] | None = None
-    if limb is not None and star is not None:
-        gap = (limb[0] - star[0], limb[1] - star[1])
-    return RealLimbStarSample(
-        image_id=image_id,
-        limb_offset_vu=limb,
-        star_offset_vu=star,
-        star_technique=star_name,
-        gap_vu=gap,
     )
 
 
@@ -407,43 +320,3 @@ def ridge_inset_phase_zero(*, diameter_px: float, size_px: int = 260) -> float:
     ridge_radius = float(ridge_idx) - center_centric
     geometric_radius = diameter_px / 2.0
     return geometric_radius - ridge_radius
-
-
-def sweep_scenes(
-    axis: str,
-    values: list[float],
-    *,
-    base: dict[str, Any],
-) -> list[tuple[float, dict[str, Any]]]:
-    """Return ``(value, sim_params)`` pairs varying one axis of a base scene.
-
-    Parameters:
-        axis: One of ``'phase'``, ``'diameter'``, ``'illumination'``,
-            ``'offset_v'``, or ``'offset_u'``.
-        values: The values to sweep.
-        base: A base scene from :func:`build_body_scene`.
-
-    Returns:
-        One ``(value, sim_params)`` pair per value.
-
-    Raises:
-        ValueError: If ``axis`` is not a recognized sweep axis.
-    """
-    out: list[tuple[float, dict[str, Any]]] = []
-    for value in values:
-        scene = copy.deepcopy(base)
-        body = scene['bodies'][0]
-        if axis == 'phase':
-            body['phase_angle'] = value
-        elif axis == 'diameter':
-            body['semi_a_px'] = body['semi_b_px'] = body['semi_c_px'] = value / 2.0
-        elif axis == 'illumination':
-            body['illumination_angle'] = value
-        elif axis == 'offset_v':
-            scene['offset_v'] = value
-        elif axis == 'offset_u':
-            scene['offset_u'] = value
-        else:
-            raise ValueError(f'unknown sweep axis: {axis!r}')
-        out.append((value, scene))
-    return out

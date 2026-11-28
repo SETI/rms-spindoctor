@@ -2385,7 +2385,7 @@ Model-mismatch sweeps
 
 The single-variable sweep harness (:mod:`tests.integration.sim_sweep`; specs
 under ``tests/integration/sim_sweeps/``, run by
-``python -m tests.integration.sim_sweep_runner``) takes one catalog scene, walks
+``python -m util.sim_reports.sim_sweep_runner``) takes one catalog scene, walks
 a single parameter across a list of values, navigates each step, and records the
 recovered-offset error, confidence, status, and primary technique per step. A
 sweep may set ``ensemble_seeds: N`` to replicate every point across N seeds (the
@@ -2451,7 +2451,7 @@ calibrated exposure walk ``noise_exposure_calib``, which has no raw twin,
 the per-technique ``*_offset_fine`` / ``*_offset_wide`` body-ephemeris sweeps) or
 by scene classes where a single-parameter sweep is not the right shape (the
 ``ring_system`` clutter scenes and the ``mutual_event`` occluded-limb scenes).
-:mod:`tests.integration.sim_sweep_plots` renders the mismatch curves into
+:mod:`util.sim_reports.sim_sweep_plots` renders the mismatch curves into
 ``docs/simulator_report/_figures/mismatch_axes.png``, one panel per axis with the
 floor point drawn distinctly.
 
@@ -3856,7 +3856,7 @@ on its load.
 Scene ingredients
 =================
 
-The panels below are rendered by ``python -m tests.integration.sim_doc_images``
+The panels below are rendered by ``python -m util.sim_reports.sim_doc_images``
 (see :ref:`sim-png-export`); each isolates one ingredient.
 
 .. figure:: _sim_images/ellipsoid_body.png
@@ -4047,7 +4047,7 @@ the GUI's "Save Scene (YAML)" / "Load Scene (YAML)" buttons read and write the
 same format via :func:`spindoctor.sim.scene.io.save_sim_scene`; and programmatic
 scene authors -- the calibration-campaign generator
 ``util/calibration/scene_gen.py`` and the doc-gallery definitions in
-``tests/integration/sim_doc_images.py`` -- validate their in-memory dicts
+``util/sim_reports/sim_doc_images.py`` -- validate their in-memory dicts
 through the same core, :func:`spindoctor.sim.scene.validate.validate_sim_params`. Every
 render calls it too, so a dict that skips this step is still checked before it
 renders.
@@ -5146,7 +5146,7 @@ change alters rendered output:
   .. code-block:: bash
 
      python -m tests.integration.render_contact_sheet
-     python -m tests.integration.sim_doc_images
+     python -m util.sim_reports.sim_doc_images
      python -m tests.integration.update_sim_baselines
 
   The sheets themselves are enforced for presence and coverage only -- their
@@ -5156,14 +5156,13 @@ change alters rendered output:
 
 The two documentation galleries (``docs/dev_guide/_sim_images/`` and
 ``docs/simulator_report/_scene_images/``, both written by
-``python -m tests.integration.sim_doc_images``) are re-rendered under the same
-rule -- and the rule is enforced mechanically:
-``tests/integration/test_sim_doc_images.py`` (integration tier, run by CI) regenerates
-every gallery image into a temporary directory and fails, listing the stale
-files and the regeneration command, whenever a committed PNG no longer
-matches a fresh render. When either check fails in CI, the job uploads the
-fresh renders as a ``sim-renders`` artifact: the regenerated galleries, and
-each stale render-diff scene's fresh ``current/`` PNG.
+``python -m util.sim_reports.sim_doc_images``) are re-rendered under the same
+rule. ``util/sim_reports/tests/test_sim_doc_images.py`` regenerates every
+gallery image into a temporary directory and fails, listing the stale files and
+the regeneration command, whenever a committed PNG no longer matches a fresh
+render. Run it on demand with ``pytest util/sim_reports/tests -m ""``; CI does
+not run it. When the render-diff check fails in CI, the job uploads the fresh
+render of each stale scene's ``current/`` PNG as a ``sim-renders`` artifact.
 
 .. _sim-gui:
 
@@ -5477,7 +5476,7 @@ curve for inspection:
 
 .. code-block:: bash
 
-   python -m tests.integration.sim_sweep_runner --dump-images out/ --only phase_regular_body
+   python -m util.sim_reports.sim_sweep_runner --dump-images out/ --only phase_regular_body
 
 writes one PNG per sweep step under ``out/<sweep_name>/``. The documentation-image
 generator rebuilds the galleries in this chapter and the scene images in the
@@ -5485,7 +5484,7 @@ sensitivity report:
 
 .. code-block:: bash
 
-   python -m tests.integration.sim_doc_images
+   python -m util.sim_reports.sim_doc_images
 
 Both galleries carry a ``NOTES.md`` describing how to regenerate them after a
 rendering change. And the render-diff contact sheet

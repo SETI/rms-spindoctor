@@ -3,7 +3,7 @@
 Reads ``sim_sweeps.csv`` next to this file and writes two compact PNGs:
 ``bias_vs_illumination.png`` (the bias vector as the lit limb rotates) and
 ``bias_vs_subpixel.png`` (the signed per-axis error versus sub-pixel offset
-phase).  Run after ``limb_bias_runner`` has produced the CSVs::
+phase).  Run after ``util/sim_reports/limb_bias_runner.py`` has produced the CSVs::
 
     PYTHONPATH=src python util/calibration/limb_bias/make_plots.py
 """

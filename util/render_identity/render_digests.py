@@ -49,12 +49,12 @@ sys.path.insert(0, str(ROOT / 'src'))
 sys.path.insert(0, str(ROOT))
 
 import numpy as np  # noqa: E402
-from tests.integration import sim_doc_images  # noqa: E402
 from tests.integration.sim_sweep import (  # noqa: E402
     build_sweep_params,
     iter_sweep_paths,
     load_sweep,
 )
+from util.sim_reports import sim_doc_images  # noqa: E402
 
 from spindoctor.sim.render.driver import clear_render_caches, render_scene  # noqa: E402
 from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene  # noqa: E402

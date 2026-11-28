@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from tests.integration import sim_sweep_plots
+from util.sim_reports import sim_sweep_plots
 
 
 @pytest.fixture

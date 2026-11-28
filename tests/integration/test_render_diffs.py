@@ -3,8 +3,9 @@
 ``tests/integration/render_diffs/`` is a standing review artifact (see
 ``tests/integration/render_contact_sheet.py``): one committed
 ``current/<scene>.png`` per catalog scene and one ``sheet_<class>.png`` per
-scene class.  This module enforces the regeneration rule mechanically, the
-way ``test_sim_doc_images`` guards the documentation galleries:
+scene class.  This module enforces the regeneration rule mechanically; the
+galleries of the documentation are guarded the same way by
+``util/sim_reports/tests/test_sim_doc_images.py``:
 
 * Every catalog scene's committed ``current/`` PNG, decoded, must equal a fresh
   render stretched through the generator's own path, pixel for pixel, and no

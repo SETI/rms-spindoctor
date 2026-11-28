@@ -3,7 +3,7 @@
 Reads the per-sweep JSON written by :mod:`sim_sweep_runner` and writes PNG charts
 under ``docs/simulator_report/_figures/``: the sub-pixel and wide-range offset
 accuracy of every technique, and the camera-roll recovery.  Run as part of
-``python -m tests.integration.sim_sweep_runner`` (or standalone) -- not part of
+``python -m util.sim_reports.sim_sweep_runner`` (or standalone) -- not part of
 pytest.  Requires ``matplotlib``.
 """
 
@@ -17,12 +17,12 @@ import matplotlib
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
-from spindoctor.sim.scene.io import load_sim_scene
 from tests.integration.checkout_guard import require_checkout_package
 
-_RESULTS_ROOT = Path(__file__).parent / 'sim_sweeps' / 'results'
-_SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
+from spindoctor.sim.scene.io import load_sim_scene
+
+_RESULTS_ROOT = Path(__file__).parents[2] / 'tests' / 'integration' / 'sim_sweeps' / 'results'
+_SCENES_ROOT = Path(__file__).parents[2] / 'tests' / 'integration' / 'sim_scenes'
 _FIGURES_ROOT = Path(__file__).parent.parent.parent / 'docs' / 'simulator_report' / '_figures'
 
 # Technique -> (fine sweep, wide sweep, marker, label) for the offset figures.
