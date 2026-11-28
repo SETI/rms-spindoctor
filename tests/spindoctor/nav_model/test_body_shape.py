@@ -7,7 +7,7 @@ import dataclasses
 import pytest
 
 from spindoctor.config import Config
-from spindoctor.config.sections_body_shape import BodyShapeEntry
+from spindoctor.config.sections_models import BodyShapeEntry
 from spindoctor.nav_model.body_shape import (
     BODY_SHAPE_TABLE,
     DEFAULT_BODY_SHAPE,
