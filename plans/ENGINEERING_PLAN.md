@@ -806,9 +806,13 @@ where they differ).
   exposures; found by #1257's Cassini measurement.
 - **#1300** — the star-limit fit reads narrow filters' offsets too bright;
   found by #1257's Cassini measurement.
-- **#1302** — Cassini moon frames answer confidently on a false lone-star
-  match (N1669606966_1, N1597846115_2, library expected failures); found by
-  #1257's Cassini limit.
+- **#1302** (this PR, pending the operator's star check) — Cassini moon
+  frames answer confidently on a false lone-star match (N1669606966_1,
+  N1597846115_2, library expected failures); found by #1257's Cassini limit.
+  The star answers are right and the library truths were wrong: both frames'
+  stars sit on image sources at the star answer and on empty sky at the
+  recorded truth. Both truths move to the stars' offset, and N1597846115_2
+  leaves #867's list.
 - **#1303** — the Cassini methane-filter star field N1461997416_1 loses its
   stars under the narrow-filter limit (library expected failure); found by
   #1257's Cassini limit.

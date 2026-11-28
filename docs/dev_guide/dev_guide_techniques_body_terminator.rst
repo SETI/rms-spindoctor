@@ -399,10 +399,12 @@ Examples
 ========
 
 ``high_phase_terminator`` (Cassini ISS NAC, image ``N1597846115_2``)
-    A high-phase terminator arc with no other features in the FOV.
-    :class:`~spindoctor.nav_technique.nav_technique_body_terminator.BodyTerminatorNav` consumes the
-    single ``TERMINATOR_ARC`` feature offered by the body model and converges within ~1 px of
-    the operator-verified offset :math:`(\Delta v, \Delta u) = (5.19, 1.30)` px.
+    A high-phase terminator arc, with a few stars in the field and no other body or ring. The
+    body model offers a single ``TERMINATOR_ARC`` feature, but
+    :class:`~spindoctor.nav_technique.nav_technique_body_terminator.BodyTerminatorNav` runs as a
+    fallback, and here :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`
+    answers for the body first, so the terminator fit is skipped. The stars put the offset at
+    :math:`(\Delta v, \Delta u) = (8.17, 1.48)` px.
 
 ``body_partial_overflow`` (Cassini ISS NAC, image ``N1484593951_2``)
     Rhea visible in the upper right with about 22 % of the disc off-frame. The body model
