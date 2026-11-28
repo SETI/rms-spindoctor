@@ -1,18 +1,22 @@
 """Smoke tests for ``spindoctor.nav_technique.nav_technique_manual``.
 
 The dialog itself is GUI-only and is exercised by hand; these tests
-mock ``ManualNavDialog.run_modal`` so the technique logic
+replace ``ManualNavDialog`` with a stub so the technique logic
 (``run_manual_nav`` orchestration + accept / cancel translation) can be
-asserted without firing up Qt.
+asserted without opening a window.  A pass still builds the process's Qt
+application when the process has none.
 """
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from typing import Any
 from unittest.mock import patch
 
 import numpy as np
 import pytest
+from tests.conftest import child_interpreter_environment
 from tests.packaged_sections import raw_camera
 from tests.spindoctor.nav_technique.conftest import NavFeatureFactory
 
@@ -395,3 +399,47 @@ def test_run_manual_nav_passes_the_operator_offset_to_the_pointing(
         run_manual_nav(obs)  # type: ignore[arg-type]
     assert seen['offset_px'] == (3.0, -2.0)
     assert seen['rotation_fitted'] is False
+
+
+# A manual pass in a process with no Qt application, with the dialog stubbed out.
+_PASS_IN_A_FRESH_PROCESS = """
+import gc
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import numpy as np
+from PyQt6.QtWidgets import QApplication
+
+from spindoctor.nav_technique import NavTechniqueManual
+
+
+class _CanceledDialog:
+    def __init__(self, **_kwargs):
+        pass
+
+    def run_modal(self):
+        return False, None, None
+
+
+context = SimpleNamespace(obs=None, image_ext=np.zeros((8, 8)))
+with patch('spindoctor.ui.manual_nav_dialog.ManualNavDialog', _CanceledDialog):
+    NavTechniqueManual().navigate([], context)
+gc.collect()
+print(QApplication.instance() is not None)
+"""
+
+
+def test_the_application_a_manual_pass_builds_outlives_the_pass() -> None:
+    """The application stays alive, so a later one never replaces a destroyed one."""
+    env = child_interpreter_environment()
+    env['QT_QPA_PLATFORM'] = 'offscreen'
+    result = subprocess.run(
+        [sys.executable, '-c', _PASS_IN_A_FRESH_PROCESS],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    # The pass logs to stdout ahead of the script's answer.
+    assert result.stdout.splitlines()[-1:] == ['True'], result.stdout + result.stderr
