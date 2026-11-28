@@ -15,8 +15,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
-from tests.camera_sections import raw_camera
-from tests.model_sections import packaged_stars
+from tests.packaged_sections import packaged_stars, raw_camera
 
 from spindoctor.annotation import Annotations
 from spindoctor.feature.constants import MIN_ANISOTROPIC_SMEAR_PX

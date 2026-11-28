@@ -12,7 +12,7 @@ import math
 
 import numpy as np
 import pytest
-from tests.orchestrator_section import packaged_ensemble
+from tests.packaged_sections import packaged_ensemble
 
 from spindoctor.nav_orchestrator.ensemble import _combine_precision_weighted, ensemble
 from spindoctor.nav_orchestrator.ensemble_consensus import consensus_selection

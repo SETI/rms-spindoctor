@@ -13,7 +13,7 @@ Five top-level sections of the navigator configuration are parsed here:
   annulus in place of the edges it would trace.
 
 A mapping keyed by planet must name only planets of the ``planets`` section.  That rule
-reads two sections, so :class:`~spindoctor.config.sections.TypedSections` checks it.  It
+reads two sections, so :class:`~spindoctor.config.sections.NavConfig` checks it.  It
 also checks that each key of ``bodies.geometric_albedo`` is in upper case, under the
 rule it applies to the ``body_shape`` section.
 

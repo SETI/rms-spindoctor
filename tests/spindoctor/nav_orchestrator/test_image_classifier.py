@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from tests.camera_sections import raw_thresholds
+from tests.packaged_sections import raw_thresholds
 
 from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
 

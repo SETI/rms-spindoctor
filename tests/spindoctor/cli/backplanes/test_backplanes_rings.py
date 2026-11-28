@@ -17,7 +17,7 @@ import numpy.ma as ma
 import pytest
 from astropy.io import fits
 from filecache import FCPath
-from tests.product_sections import plane_entry
+from tests.packaged_sections import plane_entry
 
 from spindoctor.cli.backplanes.backplanes_rings import create_ring_backplanes
 from spindoctor.cli.backplanes.merge import merge_sources_into_master
