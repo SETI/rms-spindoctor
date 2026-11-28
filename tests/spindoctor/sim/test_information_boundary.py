@@ -22,7 +22,7 @@ from spindoctor.sim.scene.boundary import (
     TRUTH_KEYS,
     build_nav_params,
 )
-from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
+from spindoctor.sim.scene.truth_atmosphere import ATMOSPHERE_KEYS
 from spindoctor.sim.scene.validate import validate_sim_params
 
 # One concrete exercising value per truth key.  The completeness check below

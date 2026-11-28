@@ -3,11 +3,13 @@
 Each typed scene key that declares one default value is tested the same way.  A base
 scene sets every such key to a value other than its default, so the render reads each
 of them.  The test then renders the base with the key left out and with the key set to
-its declared default, and the two frames must match to the last bit.  It also checks
-that the base value renders differently from the default, so a key the render ignores
-cannot pass.  Some defaults are constants that the renderer imports from the scene
-types; the rest are values the renderer writes where it reads the key, and this test
-is what holds those to the declarations.
+its declared default, and the two frames, and the star records the render makes, must
+match to the last bit.  It also checks that the base value renders differently from the
+default, so a key the render ignores cannot pass.  Some defaults are constants that the
+renderer imports from the scene types; the rest are values the renderer writes where it
+reads key, and this test is what holds those to the declarations.  The keys of a body's
+``nav_override`` are left out: the renderer never reads them, and they are the body's
+own idealized keys, which the test covers on the body.
 """
 
 import copy
@@ -47,7 +49,23 @@ _BASE = frame_scene(
     star_catalog_scatter_px=0.4,
     oversample=1,
     bodies=[disc_body(30.0, 18.0, 6.0, range_km=1.0e6)],
-    stars=[star_entry(10.0, 38.0, 7.0), star_entry(40.0, 40.0, 8.0)],
+    stars=[
+        star_entry(
+            10.0,
+            38.0,
+            7.0,
+            catalog_name='TYCHO',
+            spectral_class='K5',
+            move_v=1.5,
+            move_u=-0.8,
+            navigable=False,
+            catalog_error_v=0.4,
+            catalog_error_u=-0.3,
+            companion={'sep_px': 2.0, 'delta_mag': 1.0, 'angle_deg': 30.0},
+            delta_mag=0.5,
+        ),
+        star_entry(40.0, 40.0, 8.0),
+    ],
     ring_system=ring_system_block(24.0, 24.0, [_RINGLET], range_km=2.0e6),
     spk_error={'dv_px': 0.8, 'du_px': -0.6, 'reference_range_km': 1.0e6},
     optics={
@@ -60,6 +78,91 @@ _BASE = frame_scene(
     detector={'binning': 2},
 )
 
+# The spot or storm every surface-mark list of the body base holds.
+_MARK = {'lat_deg': 10.0, 'lon_deg': 80.0, 'radius_deg': 15.0, 'albedo_factor': 0.5}
+
+# The base of the body keys: one large ellipsoid that sets every ellipsoid key to a value
+# other than its default, alone in its frame so every key it sets shows.
+_BODY_BASE = frame_scene(
+    size=64,
+    oversample=1,
+    bodies=[
+        {
+            'name': 'B',
+            'center_v': 32.0,
+            'center_u': 32.0,
+            'semi_a_px': 20.0,
+            'semi_b_px': 16.0,
+            'semi_c_px': 14.0,
+            'rotation_z': 20.0,
+            'sub_observer_lat_deg': 15.0,
+            'illumination_angle': 30.0,
+            'phase_angle': 40.0,
+            'crater_fill': 0.5,
+            'crater_min_radius': 0.08,
+            'crater_max_radius': 0.2,
+            'crater_power_law_exponent': 2.5,
+            'crater_relief_scale': 0.8,
+            'anti_aliasing': 0.5,
+            'limb_relief_rms': 0.02,
+            'limb_relief_corr_deg': 10.0,
+            'photometric_law': 'minnaert',
+            'minnaert_k': 0.8,
+            'opposition_surge': {'amplitude': 0.5, 'width_deg': 10.0},
+            'albedo_texture': {'rms': 0.1, 'corr_px': 8.0, 'spots': [dict(_MARK)]},
+            'disc_texture': {
+                'band_amplitude': 0.2,
+                'band_wavenumber': 5.0,
+                'band_phase_deg': 30.0,
+                'storms': [dict(_MARK, lon_deg=100.0)],
+            },
+            'transits': [
+                {
+                    'moon': {'dv_px': 3.0, 'du_px': -2.0, 'radius_px': 4.0, 'albedo_factor': 0.6},
+                    'shadow': {'dv_px': -4.0, 'du_px': 5.0, 'radius_px': 3.0, 'darkness': 0.5},
+                }
+            ],
+            'atmosphere': {
+                'scale_height_px': 2.0,
+                'tau_ref': 1.0,
+                'ref_altitude_px': 1.0,
+                'g': 0.3,
+                'albedo': 0.4,
+                'interior_ramp_amplitude': 0.05,
+                'ns_asymmetry_amplitude': 0.1,
+                'ns_falloff_ratio': 1.3,
+                'axis_tilt_deg': 10.0,
+                'sector_sharpness_gradient': 0.2,
+            },
+        }
+    ],
+)
+
+# A mesh body, which the mesh keys need: the body base's geometry and lighting, drawn
+# from a mesh.
+_MESH_BODY = {
+    'name': 'B',
+    'center_v': 32.0,
+    'center_u': 32.0,
+    'semi_a_px': 20.0,
+    'semi_b_px': 16.0,
+    'semi_c_px': 14.0,
+    'illumination_angle': 30.0,
+    'phase_angle': 40.0,
+    'shape_model': 'polyhedral_mesh',
+}
+# The mesh body with every mesh key set to a value other than its default.
+_FULL_MESH_BODY = _MESH_BODY | {
+    'mesh_lumpiness': 0.2,
+    'mesh_n_lat': 24,
+    'mesh_n_lon': 48,
+    'mesh_seed': 3,
+    'mesh_detail_octaves': 1,
+    'pose_euler_deg': [10.0, 20.0, 30.0],
+    'shading': 'gouraud',
+    'pose_scatter': {'sigma_deg': 2.0},
+}
+
 # The keys a key needs set before the render reads it, where the base cannot set them
 # for every key at once.  The contour step is read only by the contour quantization, and
 # the ramp direction only by the linear stray-light model.
@@ -69,6 +172,20 @@ _CONTEXT: dict[Path, dict[Path, Any]] = {
         ('detector', 'contour_step'): 5,
     },
     ('optics', 'stray_light', 'direction_deg'): {('optics', 'stray_light', 'model'): 'linear'},
+    # A mesh body writing the default shape keeps no key an ellipsoid refuses.
+    ('bodies', 0, 'shape_model'): {('bodies', 0): _MESH_BODY},
+    **{
+        ('bodies', 0, key): {('bodies', 0): _FULL_MESH_BODY}
+        for key in (
+            'mesh_lumpiness',
+            'mesh_n_lat',
+            'mesh_n_lon',
+            'mesh_seed',
+            'mesh_detail_octaves',
+            'shading',
+        )
+    },
+    ('bodies', 0, 'pose_scatter', 'sigma_deg'): {('bodies', 0): _FULL_MESH_BODY},
 }
 
 
@@ -90,6 +207,8 @@ def _defaulted(cls: type, prefix: Path = ()) -> list[tuple[Path, Any]]:
     hints = get_type_hints(cls, include_extras=True)
     for item in dataclasses.fields(cls):
         name = item.name
+        if name == 'nav_override':
+            continue
         path = (*prefix, name)
         declared = declaration_of(item)
         if declared.default is not None:
@@ -123,15 +242,21 @@ def _without(scene: dict[str, Any], path: Path) -> dict[str, Any]:
     return copied
 
 
-def _render(scene: dict[str, Any]) -> NDArrayFloatType:
-    """The frame a scene renders."""
-    image, _ = render_scene(scene, source='defaults')
-    return image
+def _render(scene: dict[str, Any]) -> tuple[NDArrayFloatType, str]:
+    """The frame a scene renders, and its star records written out."""
+    image, truth = render_scene(scene, source='defaults')
+    records = repr([vars(star) for star in truth['stars']]) + repr(truth['star_info'])
+    return image, records
+
+
+def _same(first: tuple[NDArrayFloatType, str], second: tuple[NDArrayFloatType, str]) -> bool:
+    """Whether two renders give the same frame and the same star records."""
+    return bool(np.array_equal(first[0], second[0])) and first[1] == second[1]
 
 
 def _base_for(path: Path) -> dict[str, Any]:
     """The base scene with the keys the key at ``path`` needs to be read."""
-    scene = _BASE
+    scene = _BODY_BASE if path[0] == 'bodies' else _BASE
     for needed, value in _CONTEXT.get(path, {}).items():
         scene = _with(scene, needed, value)
     return scene
@@ -143,6 +268,18 @@ def test_every_key_with_a_default_is_tested() -> None:
     assert ('optics', 'ghosts', 0, 'defocus_sigma') in paths
 
 
+def test_the_walk_reaches_the_blocks_of_a_body() -> None:
+    """The walk finds a key inside a body's nested blocks."""
+    paths = {path for path, _ in _DEFAULTED}
+    assert ('bodies', 0, 'transits', 0, 'shadow', 'darkness') in paths
+
+
+def test_the_walk_leaves_out_the_navigation_override() -> None:
+    """No key the walk finds lies inside a body's nav_override."""
+    inside = [path for path, _ in _DEFAULTED if 'nav_override' in path]
+    assert inside == []
+
+
 @pytest.mark.parametrize(
     ('path', 'default'),
     _DEFAULTED,
@@ -152,5 +289,5 @@ def test_a_left_out_key_renders_as_its_declared_default(path: Path, default: Any
     """Leaving a key out renders the same frame as writing its declared default."""
     base = _base_for(path)
     declared = _render(_with(base, path, default))
-    assert not np.array_equal(_render(base), declared), 'the base scene does not read the key'
-    assert np.array_equal(_render(_without(base, path)), declared)
+    assert not _same(_render(base), declared), 'the base scene does not read the key'
+    assert _same(_render(_without(base, path)), declared)

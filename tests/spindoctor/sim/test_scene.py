@@ -27,7 +27,15 @@ def _sim_params() -> dict[str, Any]:
         'instrument': 'coiss_nac',
         'offset_v': 3.0,
         'offset_u': -2.0,
-        'bodies': [{'name': 'RHEA', 'center_v': 64.0, 'center_u': 64.0, 'semi_a_px': 40.0}],
+        'bodies': [
+            {
+                'name': 'RHEA',
+                'center_v': 64.0,
+                'center_u': 64.0,
+                'semi_a_px': 40.0,
+                'semi_b_px': 40.0,
+            }
+        ],
         'noise': {'poisson': True, 'read_noise_dn': 4.0},
         'sky_counts': {'density_factor': 12.0},
     }
@@ -200,7 +208,9 @@ def test_validate_sim_params_refuses_limb_relief_rms_above_the_cap() -> None:
     """A relief RMS just above 10% of the radius fails validation, stating the limit."""
     params = _sim_params()
     params['bodies'][0]['limb_relief_rms'] = 0.1001
-    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.1;'):
+    with pytest.raises(
+        SimSceneValidationError, match=r'limb_relief_rms: expected a number in \[0, 0\.1\]'
+    ):
         validate_sim_params(params)
 
 
@@ -216,7 +226,9 @@ def test_validate_sim_params_bounds_relief_corr_from_below(corr_deg: float, acce
     if accepted:
         assert validate_sim_params(params) is params
         return
-    with pytest.raises(SimSceneValidationError, match=r'limb_relief_corr_deg .*at least 1\.0'):
+    with pytest.raises(
+        SimSceneValidationError, match=r'limb_relief_corr_deg: expected a number of at least 1,'
+    ):
         validate_sim_params(params)
 
 
@@ -389,7 +401,8 @@ def test_validate_sim_params_refuses_a_sub_observer_latitude_past_the_pole() -> 
     params = _sim_params()
     params['bodies'][0]['sub_observer_lat_deg'] = 91.0
     with pytest.raises(
-        SimSceneValidationError, match=re.escape('sub_observer_lat_deg must lie in [-90, 90]')
+        SimSceneValidationError,
+        match=re.escape('sub_observer_lat_deg: expected a number in [-90, 90]'),
     ):
         validate_sim_params(params)
 
@@ -405,7 +418,9 @@ def test_validate_sim_params_rejects_truth_key_in_nav_override() -> None:
     """nav_override may only carry idealized body keys (believed geometry)."""
     params = _sim_params()
     params['bodies'][0]['nav_override'] = {'crater_fill': 0.0}
-    with pytest.raises(SimSceneValidationError, match='nav_override may only override'):
+    with pytest.raises(
+        SimSceneValidationError, match=r"nav_override: unknown keys: \['crater_fill'\]"
+    ):
         validate_sim_params(params)
 
 
@@ -466,7 +481,9 @@ def test_validate_sim_params_rejects_zero_crater_max_radius() -> None:
     params = _sim_params()
     params['bodies'][0]['crater_fill'] = 0.2
     params['bodies'][0]['crater_max_radius'] = 0
-    with pytest.raises(SimSceneValidationError, match='crater_max_radius must be a positive'):
+    with pytest.raises(
+        SimSceneValidationError, match='crater_max_radius: expected a positive number'
+    ):
         validate_sim_params(params)
 
 
@@ -474,7 +491,9 @@ def test_validate_sim_params_rejects_zero_crater_min_radius() -> None:
     """A zero crater_min_radius fails at validation."""
     params = _sim_params()
     params['bodies'][0]['crater_min_radius'] = 0.0
-    with pytest.raises(SimSceneValidationError, match='crater_min_radius must be a positive'):
+    with pytest.raises(
+        SimSceneValidationError, match='crater_min_radius: expected a positive number'
+    ):
         validate_sim_params(params)
 
 
@@ -507,7 +526,9 @@ def test_validate_sim_params_rejects_crater_power_law_exponent_at_one() -> None:
     """crater_power_law_exponent <= 1 fails with the normalizability message."""
     params = _sim_params()
     params['bodies'][0]['crater_power_law_exponent'] = 1.0
-    with pytest.raises(SimSceneValidationError, match='must exceed 1'):
+    with pytest.raises(
+        SimSceneValidationError, match='crater_power_law_exponent: expected a number greater than 1'
+    ):
         validate_sim_params(params)
 
 
@@ -621,7 +642,7 @@ def test_validate_sim_params_rejects_a_negative_tau_ref() -> None:
     params = _sim_params()
     params['bodies'][0]['atmosphere'] = {'scale_height_px': 4.0, 'tau_ref': -0.5}
     with pytest.raises(
-        SimSceneValidationError, match=r'atmosphere\.tau_ref must be a non-negative number'
+        SimSceneValidationError, match=r'atmosphere\.tau_ref: expected a non-negative number'
     ):
         validate_sim_params(params)
 
@@ -663,7 +684,10 @@ def test_default_body_name_counts_from_one() -> None:
 def test_validate_sim_params_rejects_duplicate_body_names() -> None:
     """Two bodies with the same name fail (name-keyed truth would collide)."""
     params = _sim_params()
-    params['bodies'] = [{'name': 'RHEA', 'semi_a_px': 20.0}, {'name': 'RHEA', 'semi_a_px': 10.0}]
+    params['bodies'] = [
+        {'name': 'RHEA', 'semi_a_px': 20.0, 'semi_b_px': 20.0},
+        {'name': 'RHEA', 'semi_a_px': 10.0, 'semi_b_px': 10.0},
+    ]
     with pytest.raises(SimSceneValidationError, match="share the effective name 'RHEA'"):
         validate_sim_params(params)
 
@@ -671,7 +695,10 @@ def test_validate_sim_params_rejects_duplicate_body_names() -> None:
 def test_validate_sim_params_rejects_case_colliding_body_names() -> None:
     """Body names collide case-insensitively (truth keys are upper-cased)."""
     params = _sim_params()
-    params['bodies'] = [{'name': 'Rhea', 'semi_a_px': 20.0}, {'name': 'RHEA', 'semi_a_px': 10.0}]
+    params['bodies'] = [
+        {'name': 'Rhea', 'semi_a_px': 20.0, 'semi_b_px': 20.0},
+        {'name': 'RHEA', 'semi_a_px': 10.0, 'semi_b_px': 10.0},
+    ]
     with pytest.raises(SimSceneValidationError, match='share the effective name'):
         validate_sim_params(params)
 
@@ -679,7 +706,10 @@ def test_validate_sim_params_rejects_case_colliding_body_names() -> None:
 def test_validate_sim_params_rejects_body_name_colliding_with_default() -> None:
     """An explicit name colliding with an unnamed body's positional default fails."""
     params = _sim_params()
-    params['bodies'] = [{'semi_a_px': 20.0}, {'name': 'SIM-BODY-1', 'semi_a_px': 10.0}]
+    params['bodies'] = [
+        {'semi_a_px': 20.0, 'semi_b_px': 20.0},
+        {'name': 'SIM-BODY-1', 'semi_a_px': 10.0, 'semi_b_px': 10.0},
+    ]
     with pytest.raises(SimSceneValidationError, match="share the effective name 'SIM-BODY-1'"):
         validate_sim_params(params)
 
@@ -687,7 +717,10 @@ def test_validate_sim_params_rejects_body_name_colliding_with_default() -> None:
 def test_validate_sim_params_accepts_distinct_body_names() -> None:
     """Distinctly named (and defaulted) bodies validate."""
     params = _sim_params()
-    params['bodies'] = [{'name': 'RHEA', 'semi_a_px': 20.0}, {'semi_a_px': 10.0}]
+    params['bodies'] = [
+        {'name': 'RHEA', 'semi_a_px': 20.0, 'semi_b_px': 20.0},
+        {'semi_a_px': 10.0, 'semi_b_px': 10.0},
+    ]
     assert validate_sim_params(params) is params
 
 

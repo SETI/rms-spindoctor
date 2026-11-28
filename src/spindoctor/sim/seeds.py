@@ -49,3 +49,21 @@ def derive_effect_seed(scene_seed: int, effect: str) -> int:
         An integer in [0, 2**32 - 1] suitable for seeding numpy.random.Generator.
     """
     return _digest_to_seed(f'{int(scene_seed)}:{effect}'.encode())
+
+
+def body_identity_seed(body_streams_seed: int, name: str, body_index: int) -> int:
+    """The seed every random stream of one scene body derives from.
+
+    The scene's seed for the bodies' streams is mixed with the body's index and its
+    upper-cased name, so two bodies of the same geometry draw independent surfaces:
+    ``derive_effect_seed(body_streams_seed, 'body:<index>:<NAME>')``.
+
+    Parameters:
+        body_streams_seed: The scene's seed for the bodies' streams.
+        name: The body's name, or the name its position gives it.
+        body_index: The body's position in the scene's body list.
+
+    Returns:
+        The body's identity seed, below 2**32.
+    """
+    return derive_effect_seed(body_streams_seed, f'body:{body_index}:{name.upper()}')

@@ -2,9 +2,11 @@
 
 from typing import Any
 
+import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
+from spindoctor.sim.instruments.passbands import Passband
 from spindoctor.sim.scene import rules_body
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
@@ -69,7 +71,9 @@ def test_a_second_phase_term_share_without_its_term_is_refused() -> None:
 
 def test_a_second_phase_term_asymmetry_outside_the_open_interval_is_refused() -> None:
     """A second-term asymmetry of 1 or more fails validation and names the key."""
-    with pytest.raises(SimSceneValidationError, match=r'atmosphere\.g2 must lie in \(-1, 1\)'):
+    with pytest.raises(
+        SimSceneValidationError, match=r'atmosphere\.g2: expected a number in \(-1, 1\), got 1\.0'
+    ):
         validate_sim_params(_second_term_scene(g2=1.0, g2_fraction=0.1))
 
 
@@ -120,7 +124,9 @@ def test_an_unknown_haze_model_is_refused() -> None:
     """Only ``titan`` names a haze model."""
     scene = _titan_model_scene()
     scene['bodies'][0]['atmosphere']['haze_model'] = 'venus'
-    with pytest.raises(SimSceneValidationError, match=r"atmosphere\.haze_model must be 'titan'"):
+    with pytest.raises(
+        SimSceneValidationError, match=r"atmosphere\.haze_model: 'venus' is not one of \['titan'\]"
+    ):
         validate_sim_params(scene)
 
 
@@ -170,3 +176,25 @@ def test_a_titan_haze_on_a_camera_without_passbands_is_refused() -> None:
     """Titan's haze depends on wavelength, so a camera without passbands is refused."""
     with pytest.raises(SimSceneValidationError, match="'vgiss_1_nac' has no passband table"):
         validate_sim_params(_titan_model_scene(instrument='vgiss_1_nac'))
+
+
+def _passband(wavelengths: list[float], weights: list[float]) -> Passband:
+    """A passband of the given bins, its weights normalized."""
+    weight = np.array(weights, dtype=np.float64)
+    return Passband(
+        filter_name='TEST',
+        wavelength_nm=np.array(wavelengths, dtype=np.float64),
+        weight=weight / weight.sum(),
+    )
+
+
+def test_the_methane_band_fraction_counts_the_band_cores() -> None:
+    """A passband with a quarter of its light at 889 nm puts 0.25 in the band cores."""
+    passband = _passband([700.0, 889.0], [3.0, 1.0])
+    assert rules_body.methane_band_fraction(passband) == pytest.approx(0.25, rel=1e-12)
+
+
+def test_the_uncovered_fraction_counts_light_outside_the_table() -> None:
+    """A passband with a fifth of its light at 400 nm leaves 0.2 outside the table."""
+    passband = _passband([400.0, 600.0], [1.0, 4.0])
+    assert rules_body.uncovered_fraction(passband) == pytest.approx(0.2, rel=1e-12)

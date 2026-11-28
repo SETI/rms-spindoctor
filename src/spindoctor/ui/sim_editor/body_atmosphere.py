@@ -20,8 +20,8 @@ from typing import Any
 
 from PyQt6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QWidget
 
-from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.scene.truth_atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.ui.sim_editor.base import SimEditorBase
 from spindoctor.ui.sim_editor.widgets import as_map, kept_or_shown, make_dspin
 

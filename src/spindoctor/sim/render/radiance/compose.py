@@ -60,8 +60,10 @@ from spindoctor.sim.instruments.resolvers import (
 from spindoctor.sim.render.bodies.atmosphere import HaloScreen
 from spindoctor.sim.render.bodies.placement import BodyCoverage, UncoveredFraction
 from spindoctor.sim.render.bodies.render import render_single_body
-from spindoctor.sim.render.bodies.spec import BodySpec, body_spec_from_params
-from spindoctor.sim.render.bodies.titan_haze import resolve_model_atmosphere
+from spindoctor.sim.render.bodies.titan_haze import (
+    resolve_model_atmosphere,
+    resolved_atmosphere_params,
+)
 from spindoctor.sim.render.optics.stage import effective_psf
 from spindoctor.sim.render.radiance.compositing import (
     ScreenOp,
@@ -80,8 +82,15 @@ from spindoctor.sim.render.radiance.stars import (
 from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_system
 from spindoctor.sim.render.roll import boresight_shift, roll_body_params
 from spindoctor.sim.render.stages import SimFrame
-from spindoctor.sim.scene.fields import default_body_range_km, scene_binning, scene_value
+from spindoctor.sim.scene.fields import (
+    default_body_range_km,
+    scene_binning,
+    scene_value,
+    value_or,
+)
+from spindoctor.sim.scene.truth_body import DEFAULT_ANTI_ALIASING, Body
 from spindoctor.sim.scene.truth_optics import DEFAULT_SMEAR_OBJECT_CLASS
+from spindoctor.sim.scene.validate import parse_body
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.stars import DEFAULT_PSF_SIZE
 from spindoctor.support.stable_math import stable_hypot
@@ -279,9 +288,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         factor = spk_ref_range / range_km
         return spk_dv * factor, spk_du * factor
 
-    # Process bodies: parse each into its typed spec (every default applied),
-    # assign default ranges, apply parallax and the
-    # camera roll, and scale centers and axes to the oversampled grid.  A roll
+    # Process bodies: parse each into its typed body, assign default ranges, apply
+    # parallax and the camera roll, and scale centers and axes to the oversampled grid.  A roll
     # rotates each body's center about the frame center (the renderer's shift
     # then makes it a turn about the boresight) and turns the body about its own
     # center by the same angle (its orientation, the direction its
@@ -289,7 +297,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # unrolled one turned with the frame, as the stars are; the body NavModel
     # predicts the unrolled geometry.  Each body also keeps a scene mapping with
     # the values it is drawn with (its center before the shift) for the truth.
-    bodies_with_ranges: list[tuple[BodySpec, dict[str, Any]]] = []
+    bodies_with_ranges: list[tuple[Body, dict[str, Any]]] = []
     explicit_ranges: list[bool] = []
     for body_number, scene_body in enumerate(bodies_params):
         body_params = (
@@ -297,22 +305,24 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             if offset_rotation_deg == 0.0
             else roll_body_params(scene_body, roll_deg=offset_rotation_deg)
         )
+        parsed = parse_body(body_params, source=f'bodies[{body_number}]')
         # A body that takes Titan's haze by name gets it in explicit keys, evaluated
         # over the scene filter's passband.
-        body_params = resolve_model_atmosphere(
-            body_params, instrument=instrument_name, filter_name=filter_name
-        )
-        spec = body_spec_from_params(body_params, index=body_number)
-        explicit_ranges.append(spec.range_km is not None)
+        body = resolve_model_atmosphere(parsed, instrument=instrument_name, filter_name=filter_name)
+        explicit_ranges.append(body.range_km is not None)
         # The positional default name and range are applied once here, so
         # every name-keyed consumer (render order, masks, inventory) sees the
         # same identity and two unnamed bodies cannot collide.
-        range_km = default_body_range_km(body_number) if spec.range_km is None else spec.range_km
+        name = body.name_at(body_number)
+        range_km = default_body_range_km(body_number) if body.range_km is None else body.range_km
         truth_params = dict(body_params)
-        truth_params['name'] = spec.name
+        if body.atmosphere is not parsed.atmosphere:
+            # The truth holds the haze the body is drawn with, in explicit keys.
+            truth_params['atmosphere'] = resolved_atmosphere_params(body_params, body)
+        truth_params['name'] = name
         truth_params['range_km'] = range_km
-        cv = det_center_v if spec.center_v is None else spec.center_v
-        cu = det_center_u if spec.center_u is None else spec.center_u
+        cv = det_center_v if body.center_v is None else body.center_v
+        cu = det_center_u if body.center_u is None else body.center_u
         sdv, sdu = _spk_shift(range_km)
         cv += sdv
         cu += sdu
@@ -329,21 +339,24 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             axis_val = body_params.get(axis_key)
             if axis_val is not None:
                 truth_params[axis_key] = float(axis_val) * os
-        render_spec = dataclasses.replace(
-            spec,
+        semi_a_px, semi_b_px, semi_c_px = body.semi_axes_px()
+        render_body = dataclasses.replace(
+            body,
+            name=name,
             center_v=cv * os,
             center_u=cu * os,
-            semi_a_px=spec.semi_a_px * os,
-            semi_b_px=spec.semi_b_px * os,
-            semi_c_px=spec.semi_c_px * os,
+            semi_a_px=semi_a_px * os,
+            semi_b_px=semi_b_px * os,
+            semi_c_px=semi_c_px * os,
             range_km=range_km,
-            roll_deg=offset_rotation_deg,
             # The editor's fast preview draws each limb without supersampling.
             # At the default setting the limb is drawn on a grid 4 times finer in
             # each direction, which costs most of a preview's time.
-            anti_aliasing=0.0 if frame.preview else spec.anti_aliasing,
+            anti_aliasing=0.0
+            if frame.preview
+            else value_or(body.anti_aliasing, DEFAULT_ANTI_ALIASING),
         )
-        bodies_with_ranges.append((render_spec, truth_params))
+        bodies_with_ranges.append((render_body, truth_params))
 
     # Order the bodies far to near.  The ordering key is the physical
     # 'range_km' -- there is no hint-unit fallback.  A body without one
@@ -352,7 +365,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # placement, never a depth claim: the paint loop below raises when
     # bodies without an explicit range_km actually overlap, so an
     # ambiguous stack is a scene-authoring error, not a guess.
-    render_items: list[tuple[tuple[float, int], BodySpec, dict[str, Any], int, bool]] = []
+    render_items: list[tuple[tuple[float, int], Body, dict[str, Any], int, bool]] = []
     for idx, ((body_spec, truth_params), explicit) in enumerate(
         zip(bodies_with_ranges, explicit_ranges, strict=True)
     ):
@@ -384,7 +397,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
 
     # Build order_near_to_far for bodies (needed for body_index_map)
     sorted_bodies_by_range = sorted(bodies_with_ranges, key=lambda x: x[1]['range_km'])
-    order_near_to_far = [body_spec.name.upper() for body_spec, _ in sorted_bodies_by_range]
+    order_near_to_far = [str(truth['name']).upper() for _, truth in sorted_bodies_by_range]
 
     # Painted-so-far tracking for the depth-ambiguity check: overlapping
     # bodies must ALL carry an explicit scene range_km, or their stacking
@@ -464,6 +477,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             body_index=orig_idx,
             oversample=os,
             margin=margin,
+            roll_deg=offset_rotation_deg,
         )
         if needs_layers:
             stack_steps.append(step_index)
@@ -598,6 +612,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             body_streams_seed=body_streams_seed,
             os=os,
             margin=margin,
+            roll_deg=offset_rotation_deg,
         )
         frame.truth['radiance_layers'] = {
             'stars': stars_layer,
@@ -652,13 +667,14 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
 def _bodies_and_rings_layers(
     shape: tuple[int, int],
     stack_steps: list[ScreenOp | int],
-    render_items: list[tuple[tuple[float, int], BodySpec, dict[str, Any], int, bool]],
+    render_items: list[tuple[tuple[float, int], Body, dict[str, Any], int, bool]],
     *,
     shift_v: float,
     shift_u: float,
     body_streams_seed: int,
     os: int,
     margin: int,
+    roll_deg: float,
 ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
     """Replay the composite's stack class by class into a bodies and a rings layer.
 
@@ -679,6 +695,7 @@ def _bodies_and_rings_layers(
         body_streams_seed: The scene's seed for every body's random streams.
         os: The oversampling factor.
         margin: How many pixels the layers extend past the frame on each side.
+        roll_deg: The planted roll the bodies were turned by, in degrees.
 
     Returns:
         The bodies layer and the rings layer.
@@ -704,6 +721,7 @@ def _bodies_and_rings_layers(
             body_index=orig_idx,
             oversample=os,
             margin=margin,
+            roll_deg=roll_deg,
         )
         halo: HaloScreen | None = body_info.get('halo')
         if halo is not None:

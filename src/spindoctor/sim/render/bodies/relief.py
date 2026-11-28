@@ -74,8 +74,6 @@ from spindoctor.support.stable_math import stable_matmul3
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
-    'MAX_LIMB_RELIEF_RMS',
-    'MIN_LIMB_RELIEF_CORR_DEG',
     'ReliefField',
     'cast_shadows',
     'clear_relief_caches',
@@ -85,25 +83,6 @@ __all__ = [
     'turned_from_sun',
 ]
 
-# The largest limb-relief RMS (a fraction of the body radius) a scene may
-# command, a limit of the scene format.  At 0.1 the surface stays about half the
-# radius out from the center: over 16 seeds at each of 1, 2, 5, 15, and 30 degrees
-# of correlation length, the deepest point lies 0.5004 of the radius below the
-# smooth surface.  At 0.2 it reaches the center (h_min -1.0 over 8 seeds).  The
-# ellipsoid renderer reads the terrain where each line of sight meets the relief
-# surface; at 0.1 and 2 to 30 degrees, a brute-force search puts its point more
-# than half a correlation length off on at most 0.025% of the disc.  The validator
-# holds mesh bodies to the same bound.
-MAX_LIMB_RELIEF_RMS = 0.1
-# The shortest relief correlation length (degrees of arc) a scene may command.
-# It bounds cost.  Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at
-# 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
-# 0.25 degrees.  A realization is cached by (corr, seed) and rescaled to the
-# RMS, so a render, or the scene editor, pays that cost again only when the
-# correlation length or the relief seed changes.  The outline envelope costs
-# about 2 s more at 1 degree (0.5 s at 2 degrees) and is cached by (corr, seed,
-# RMS).
-MIN_LIMB_RELIEF_CORR_DEG = 1.0
 # Relief harmonic degrees below this are zeroed (degree 1 = body
 # translation, degree 2 = ellipsoid shape aliasing).
 _LOW_DEGREE_CUTOFF = 3.0

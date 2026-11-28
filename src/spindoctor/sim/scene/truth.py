@@ -3,8 +3,10 @@
 :class:`Scene` extends :class:`~spindoctor.sim.scene.idealized.IdealizedScene`, the
 keys a real pipeline could know, with the keys only the test knows: the planted
 pointing error, the seeds, the render settings, and the blocks that plant the optics,
-the detector, and its noise.  It also holds ``published_equals_truth``, a key that
-neither the renderer nor the navigator reads.
+the detector, and its noise.  Its bodies and stars are the truth types of the entries
+(:class:`~spindoctor.sim.scene.truth_body.Body` and :class:`Star`), which add the
+errors the render plants to each entry's idealized keys.  It also holds
+``published_equals_truth``, a key that neither the renderer nor the navigator reads.
 :func:`~spindoctor.sim.scene.validate.parse_scene` builds a :class:`Scene` from a
 scene's mapping, which stays the scene's saved form.
 
@@ -22,11 +24,20 @@ from pydantic import AfterValidator
 
 from spindoctor.schema import SCHEMA_CONFIG, Float, Int, NonNeg, Positive, PositiveInt, Str
 from spindoctor.sim.scene.declare import Boundary, EditorHint, IntWithin, optional, required
-from spindoctor.sim.scene.idealized import IdealizedScene
+from spindoctor.sim.scene.idealized import IdealizedScene, IdealizedStar
+from spindoctor.sim.scene.truth_body import Body
 from spindoctor.sim.scene.truth_detector import DetectorOverride, Noise
 from spindoctor.sim.scene.truth_optics import Optics
 
-__all__ = ['NOISE_SEED_MAX', 'UNTYPED_BLOCKS', 'NoiseSeed', 'Scene', 'SpkError']
+__all__ = [
+    'NOISE_SEED_MAX',
+    'UNTYPED_BLOCKS',
+    'NoiseSeed',
+    'Scene',
+    'SpkError',
+    'Star',
+    'StarCompanion',
+]
 
 #: The largest ``noise_seed``: the scene editor's control stops at the 32-bit limit.
 NOISE_SEED_MAX = 2**31 - 1
@@ -38,13 +49,90 @@ NoiseSeed = Annotated[Int, AfterValidator(IntWithin(0, NOISE_SEED_MAX))]
 #: The top-level blocks :class:`Scene` does not type yet, each with its boundary class.
 #: Each is checked by its module of rules until its type lands.
 UNTYPED_BLOCKS: dict[str, Boundary] = {
-    'bodies': 'idealized',
-    'stars': 'idealized',
     'ring_system': 'idealized',
     'sky_counts': 'truth',
     'artifacts': 'truth',
     'expected': 'test',
 }
+
+
+@dataclass(frozen=True, kw_only=True)
+class StarCompanion:
+    """An unresolved companion of a star: a second point source beside it.
+
+    Its light pulls the blended photocenter off the catalog position by an amount the
+    magnitudes weigh, a physical catalog error the navigator cannot know.
+
+    Parameters:
+        sep_px: The companion's separation from the star, in pixels.
+        delta_mag: How much fainter the companion is than the star, in magnitudes.
+        angle_deg: The direction of the companion from the star, in degrees.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    sep_px: NonNeg | None = optional(
+        'truth',
+        "The companion's separation from the star, in detector pixels. Zero draws no companion.",
+        default=0.0,
+        editor=EditorHint(minimum=0.0, maximum=200.0, decimals=3),
+    )
+    delta_mag: Float | None = optional(
+        'truth',
+        'How much fainter the companion is than the star as drawn, in magnitudes.',
+        default=0.0,
+    )
+    angle_deg: Float | None = optional(
+        'truth',
+        'The direction of the companion from the star, in degrees from +v toward +u.',
+        default=0.0,
+    )
+
+
+@dataclass(frozen=True, kw_only=True)
+class Star(IdealizedStar):
+    """A whole ``stars`` entry: the catalog keys and the errors the render plants.
+
+    Parameters:
+        psf_sigma: A PSF width for this star, which the renderer does not read.
+        catalog_error_v: The drawn star's offset from its catalog position along v.
+        catalog_error_u: The drawn star's offset from its catalog position along u.
+        companion: An unresolved companion.
+        delta_mag: The drawn star's brightness offset from its catalog magnitude.
+    """
+
+    psf_sigma: Positive | None = optional(
+        'truth',
+        'A PSF width for this star, in pixels. The renderer draws every star with the '
+        "scene's PSF and does not read it.",
+        when_absent="the scene's PSF",
+        editor=EditorHint(minimum=0.1, maximum=20.0, decimals=2),
+    )
+    catalog_error_v: Float | None = optional(
+        'truth',
+        "The drawn star's offset from the catalog position the navigator predicts from, "
+        'along v, in pixels, added to the scene-wide ``star_catalog_scatter_px`` draw.',
+        default=0.0,
+        editor=EditorHint(minimum=-200.0, maximum=200.0, decimals=3),
+    )
+    catalog_error_u: Float | None = optional(
+        'truth',
+        "The drawn star's offset from its catalog position along u, in pixels.",
+        default=0.0,
+        editor=EditorHint(minimum=-200.0, maximum=200.0, decimals=3),
+    )
+    companion: StarCompanion | None = optional(
+        'truth',
+        'An unresolved companion, a second point source beside the star.',
+        when_absent='no companion',
+    )
+    delta_mag: Float | None = optional(
+        'truth',
+        'How much fainter the star is drawn than its catalog ``vmag``, in magnitudes, as '
+        "for a variable star; the navigator's catalog keeps ``vmag``.",
+        default=0.0,
+        editor=EditorHint(minimum=-10.0, maximum=10.0, decimals=2),
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -99,6 +187,8 @@ class Scene(IdealizedScene):
         detector: The detector values the scene replaces.
         noise: The detector noise.
         spk_error: The planted spacecraft-ephemeris error.
+        bodies: The bodies in the frame, with their truth keys.
+        stars: The catalog stars in the frame, with their truth keys.
         published_equals_truth: The truth paths the navigator block repeats on purpose.
     """
 
@@ -166,6 +256,17 @@ class Scene(IdealizedScene):
         'truth',
         'A planted spacecraft-ephemeris error, which moves each object by parallax.',
         when_absent='no parallax error',
+    )
+    bodies: tuple[Body, ...] | None = optional(
+        'idealized',
+        'The bodies in the frame, each a mapping of its geometry and appearance.',
+        when_absent='no bodies',
+    )
+    stars: tuple[Star, ...] | None = optional(
+        'idealized',
+        'The catalog stars in the frame, each a mapping of its catalog entry and of the '
+        'errors the render plants on it.',
+        when_absent='no catalog stars',
     )
     published_equals_truth: tuple[Str, ...] | None = optional(
         'test',

@@ -29,9 +29,9 @@ except (ImportError, OSError) as exc:
         allow_module_level=True,
     )
 
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.stars import SKY_COUNTS_DEFAULTS
 from spindoctor.sim.scene.idealized import MIN_FRAME_SIZE_PX
+from spindoctor.sim.scene.truth_body import DEFAULT_ANTI_ALIASING
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 
@@ -130,7 +130,6 @@ _FRAME_300_BY_400: dict[str, Any] = {'instrument': 'coiss_nac', 'size_v': 300, '
 def test_unset_keys_show_the_renderers_defaults(qapp: QApplication) -> None:
     """An unset key's control shows the value the renderer draws with."""
     body = {'semi_a_px': 20.0, 'semi_b_px': 15.0, 'opposition_surge': {}}
-    spec = body_spec_from_params(body, index=0)
     model = _loaded({**_FRAME_300_BY_400, 'bodies': [body], 'sky_counts': {}, 'spk_error': {}})
     tab = _body_tab(model, 0)
     shown = (
@@ -141,9 +140,9 @@ def test_unset_keys_show_the_renderers_defaults(qapp: QApplication) -> None:
         model._spk_range_spin.value(),
     )
     assert shown == (
-        spec.anti_aliasing,
-        spec.semi_c_px,
-        spec.surge_amplitude,
+        DEFAULT_ANTI_ALIASING,
+        15.0,
+        0.0,
         SKY_COUNTS_DEFAULTS['density_factor'],
         0.0,
     )

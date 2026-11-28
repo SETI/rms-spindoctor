@@ -29,7 +29,7 @@ through ``nav_params``:
 - ``cloud_blobs`` add Gaussian clouds on the disc.
 
 Every field is optional and the whole module is bypassed when a body's
-``atmosphere`` block names none of them: :func:`haze_structure_from_params`
+``atmosphere`` block names none of them: :func:`haze_structure_from_block`
 returns None, and the haze renders through exactly the arithmetic it did
 before this structure existed.  That gating is a performance contract, not
 only a tidiness one -- the per-pixel scale-height field costs an array where
@@ -72,44 +72,34 @@ the scaled brightness passes the detector's full well.
 """
 
 import math
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 
-from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.scene.fields import value_or
+from spindoctor.sim.scene.truth_atmosphere import (
+    DEFAULT_NS_FALLOFF_RATIO,
+    HAZE_STRUCTURE_KEYS,
+    SECTOR_REFERENCE_HALF_ANGLE_DEG,
+    BodyAtmosphere,
+    BodyCloudBlob,
+)
 from spindoctor.sim.shared.lighting import in_plane_light_direction
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'CLOUD_BLOB_KEYS',
-    'HAZE_STRUCTURE_KEYS',
     'HEMISPHERE_BLEND_HALF_WIDTH_DEG',
-    'SECTOR_REFERENCE_HALF_ANGLE_DEG',
     'CloudBlob',
     'HazeStructure',
     'apply_disc_structure',
     'apply_hemispheric_scaling',
-    'haze_structure_from_params',
+    'haze_structure_from_block',
     'hemisphere_weight',
     'latitude_sine',
     'scale_height_field',
     'tilted_illumination_2d',
 ]
-
-
-SECTOR_REFERENCE_HALF_ANGLE_DEG: float = 60.0
-"""Azimuthal half-width the sharpness gradient is expressed against.
-
-``sector_sharpness_gradient`` states the fractional change in falloff length
-between the sunward point of the limb and the edge of a sector this wide, so
-a gradient of 1.0 doubles the falloff length there.  A fixed sim-side
-reference, deliberately not read from the navigator's sector configuration:
-the rendered scene is nature, and it must not move when a navigation
-threshold is retuned.
-"""
 
 
 HEMISPHERE_BLEND_HALF_WIDTH_DEG: float = 10.0
@@ -138,32 +128,6 @@ of 500.
 The band is not small.  For a sphere seen with its axis in the image plane
 it covers 22% of the projected disc and 11% of the limb, together with the
 halo above that part of the limb.
-"""
-
-
-HAZE_STRUCTURE_KEYS: frozenset[str] = frozenset(
-    {
-        'interior_ramp_amplitude',
-        'ns_asymmetry_amplitude',
-        'ns_falloff_ratio',
-        'axis_tilt_deg',
-        'sector_sharpness_gradient',
-        'cloud_blobs',
-    }
-)
-"""The ``atmosphere`` keys this module consumes.
-
-A body's atmosphere block naming none of these renders through the base
-haze path with no per-pixel structure cost at all.
-"""
-
-
-CLOUD_BLOB_KEYS: frozenset[str] = frozenset({'center_vu', 'sigma_px', 'amplitude'})
-"""Keys of one ``cloud_blobs`` entry.
-
-Public and defined here, beside the :class:`CloudBlob` that consumes them,
-so the scene validator and the renderer cannot disagree about what a cloud
-entry may carry.
 """
 
 
@@ -234,8 +198,8 @@ class HazeStructure:
         axis_tilt_deg: Rotation of the haze's illumination axis away from
             the body's geometric sun direction, in degrees.
         sector_sharpness_gradient: Fractional change in falloff length at
-            :data:`SECTOR_REFERENCE_HALF_ANGLE_DEG` from the sunward axis,
-            growing linearly with azimuth away from it.
+            :data:`~spindoctor.sim.scene.truth_atmosphere.SECTOR_REFERENCE_HALF_ANGLE_DEG`
+            from the sunward axis, growing linearly with azimuth away from it.
         cloud_blobs: Gaussian clouds painted on the disc.
     """
 
@@ -289,47 +253,47 @@ class HazeStructure:
         return max(_MIN_SCALE_FACTOR, hemispheric * sector)
 
 
-def _blob_from_params(entry: dict[str, Any], *, os_factor: int) -> CloudBlob:
+def _blob_from_block(blob: BodyCloudBlob, *, os_factor: int) -> CloudBlob:
     """Build one :class:`CloudBlob` from a scene ``cloud_blobs`` entry."""
-    center = scene_value(entry, 'center_vu', (0.0, 0.0))
+    center = value_or(blob.center_vu, (0.0, 0.0))
     return CloudBlob(
-        center_v=float(center[0]) * os_factor,
-        center_u=float(center[1]) * os_factor,
-        sigma_px=max(float(entry['sigma_px']) * os_factor, _MIN_BLOB_SIGMA_PX),
-        amplitude=float(entry['amplitude']),
+        center_v=center[0] * os_factor,
+        center_u=center[1] * os_factor,
+        sigma_px=max(blob.sigma_px * os_factor, _MIN_BLOB_SIGMA_PX),
+        amplitude=blob.amplitude,
     )
 
 
-def haze_structure_from_params(
-    atmosphere: Mapping[str, Any], *, oversample: int
+def haze_structure_from_block(
+    atmosphere: BodyAtmosphere, *, oversample: int
 ) -> HazeStructure | None:
     """Build a :class:`HazeStructure` from a body's ``atmosphere`` block.
 
-    Returns None when the block leaves out every key of :data:`HAZE_STRUCTURE_KEYS`,
-    so a plain haze renders as an unstructured haze.  A key that the block leaves out
-    takes its default.  Pixel lengths are scaled to the render grid by
-    ``oversample`` exactly as the body's axes are; the amplitudes, ratios, and
-    angles are dimensionless and are not.
+    Returns None when the block leaves out every key of
+    :data:`~spindoctor.sim.scene.truth_atmosphere.HAZE_STRUCTURE_KEYS`, so a plain haze
+    renders as an unstructured haze.  A key that the block leaves out takes its
+    default.  Pixel lengths are scaled to the render grid by ``oversample`` exactly as
+    the body's axes are; the amplitudes, ratios, and angles are dimensionless and are
+    not.
 
     Parameters:
-        atmosphere: One body's ``atmosphere`` mapping.
+        atmosphere: One body's ``atmosphere`` block.
         oversample: The render grid's oversampling factor.
 
     Returns:
-        The scaled structure, or None when the block carries no structure
-        keys.
+        The scaled structure, or None when the block carries no structure keys.
     """
-    if all(atmosphere.get(key) is None for key in HAZE_STRUCTURE_KEYS):
+    if all(getattr(atmosphere, key) is None for key in HAZE_STRUCTURE_KEYS):
         return None
     os_factor = max(1, int(oversample))
-    blobs = atmosphere.get('cloud_blobs') or ()
+    blobs = atmosphere.cloud_blobs or ()
     return HazeStructure(
-        interior_ramp_amplitude=float(scene_value(atmosphere, 'interior_ramp_amplitude', 0.0)),
-        ns_asymmetry_amplitude=float(scene_value(atmosphere, 'ns_asymmetry_amplitude', 0.0)),
-        ns_falloff_ratio=float(scene_value(atmosphere, 'ns_falloff_ratio', 1.0)),
-        axis_tilt_deg=float(scene_value(atmosphere, 'axis_tilt_deg', 0.0)),
-        sector_sharpness_gradient=float(scene_value(atmosphere, 'sector_sharpness_gradient', 0.0)),
-        cloud_blobs=tuple(_blob_from_params(dict(b), os_factor=os_factor) for b in blobs),
+        interior_ramp_amplitude=value_or(atmosphere.interior_ramp_amplitude, 0.0),
+        ns_asymmetry_amplitude=value_or(atmosphere.ns_asymmetry_amplitude, 0.0),
+        ns_falloff_ratio=value_or(atmosphere.ns_falloff_ratio, DEFAULT_NS_FALLOFF_RATIO),
+        axis_tilt_deg=value_or(atmosphere.axis_tilt_deg, 0.0),
+        sector_sharpness_gradient=value_or(atmosphere.sector_sharpness_gradient, 0.0),
+        cloud_blobs=tuple(_blob_from_block(blob, os_factor=os_factor) for blob in blobs),
     )
 
 
@@ -406,7 +370,8 @@ def scale_height_field(
     it in the other, and the length changes continuously across the equator.
     The sector term keys on the image-plane azimuth between each pixel and
     the haze illumination direction, so a pixel on the sunward axis keeps
-    the nominal length and one :data:`SECTOR_REFERENCE_HALF_ANGLE_DEG` away
+    the nominal length and one
+    :data:`~spindoctor.sim.scene.truth_atmosphere.SECTOR_REFERENCE_HALF_ANGLE_DEG` away
     carries the full gradient.
 
     Parameters:

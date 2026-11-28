@@ -34,14 +34,19 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAWS
-from spindoctor.sim.render.bodies.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
-from spindoctor.sim.render.bodies.texture import (
-    albedo_spec_from_params,
-    disc_texture_spec_from_params,
-)
 from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.scene.truth_body import (
+    DEFAULT_ALBEDO_CORR_PX,
+    DEFAULT_BAND_WAVENUMBER,
+    DEFAULT_LIMB_RELIEF_CORR_DEG,
+    DEFAULT_MINNAERT_K,
+    DEFAULT_PHOTOMETRIC_LAW,
+    DEFAULT_SHADING,
+    DEFAULT_SURGE_WIDTH_DEG,
+    MAX_LIMB_RELIEF_RMS,
+    MIN_LIMB_RELIEF_CORR_DEG,
+    PHOTOMETRIC_LAWS,
+)
 from spindoctor.ui.sim_editor.base import SimEditorBase
 from spindoctor.ui.sim_editor.body_mesh_keys import sync_mesh_refused_widgets
 from spindoctor.ui.sim_editor.widgets import as_map, make_dspin
@@ -129,7 +134,6 @@ class BodyAppearanceMixin(SimEditorBase):
 
     def _build_limb_relief_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the limb-relief field group (rms + correlation length)."""
-        spec = body_spec_from_params(p, index=idx)
         group = QGroupBox('Limb relief')
         group.setCheckable(True)
         form = QFormLayout(group)
@@ -138,7 +142,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=MAX_LIMB_RELIEF_RMS,
             decimals=4,
             step=0.005,
-            value=spec.limb_relief_rms,
+            value=float(scene_value(p, 'limb_relief_rms', 0.0)),
             tooltip=(
                 'Relief RMS as a fraction of the body radius: 0.02 moves the limb of a '
                 '100-pixel-radius body by 2 pixels RMS (0 disables the field).'
@@ -149,7 +153,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=180.0,
             decimals=1,
             step=1.0,
-            value=spec.limb_relief_corr_deg,
+            value=float(scene_value(p, 'limb_relief_corr_deg', DEFAULT_LIMB_RELIEF_CORR_DEG)),
             tooltip='Relief correlation length in degrees of surface arc.',
         )
         form.addRow('Relief RMS:', rms)
@@ -194,13 +198,12 @@ class BodyAppearanceMixin(SimEditorBase):
 
     def _build_photometry_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the photometric-law group (law combo + Minnaert exponent)."""
-        spec = body_spec_from_params(p, index=idx)
         group = QGroupBox('Photometric law')
         group.setCheckable(True)
         form = QFormLayout(group)
         combo = QComboBox()
         combo.addItems(list(_LAWS))
-        law_idx = combo.findText(spec.photometric_law)
+        law_idx = combo.findText(str(scene_value(p, 'photometric_law', DEFAULT_PHOTOMETRIC_LAW)))
         if law_idx >= 0:
             combo.setCurrentIndex(law_idx)
         minnaert_k = make_dspin(
@@ -208,7 +211,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=2.0,
             decimals=3,
             step=0.05,
-            value=spec.minnaert_k,
+            value=float(scene_value(p, 'minnaert_k', DEFAULT_MINNAERT_K)),
             tooltip='Minnaert exponent (k = 1 is Lambert); used only by the minnaert law.',
         )
         minnaert_k.setEnabled(combo.currentText() == 'minnaert')
@@ -267,7 +270,7 @@ class BodyAppearanceMixin(SimEditorBase):
 
     def _build_opposition_surge_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the opposition-surge group (amplitude + angular width)."""
-        spec = body_spec_from_params(p, index=idx)
+        surge = as_map(p.get('opposition_surge'))
         has_surge = isinstance(p.get('opposition_surge'), dict)
         group = QGroupBox('Opposition surge')
         group.setCheckable(True)
@@ -277,7 +280,11 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=10.0,
             decimals=3,
             step=0.05,
-            value=spec.surge_amplitude if has_surge else _SURGE_ENABLE_AMPLITUDE,
+            value=(
+                float(scene_value(surge, 'amplitude', 0.0))
+                if has_surge
+                else _SURGE_ENABLE_AMPLITUDE
+            ),
             tooltip='Surge amplitude at exact opposition (0 disables the factor).',
         )
         width = make_dspin(
@@ -285,7 +292,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=90.0,
             decimals=2,
             step=0.5,
-            value=spec.surge_width_deg,
+            value=float(scene_value(surge, 'width_deg', DEFAULT_SURGE_WIDTH_DEG)),
             tooltip='Angular e-folding width of the surge, in degrees of phase.',
         )
         form.addRow('Amplitude:', amplitude)
@@ -348,9 +355,6 @@ class BodyAppearanceMixin(SimEditorBase):
     def _build_albedo_texture_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the albedo-texture group (noise field + a spots list)."""
         block = as_map(p.get('albedo_texture'))
-        # The seed only places the noise field, which the controls do not show.
-        albedo = albedo_spec_from_params(block, seed=0)
-        assert albedo is not None
         group = QGroupBox('Albedo texture')
         group.setCheckable(True)
         outer = QVBoxLayout(group)
@@ -361,7 +365,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=2.0,
             decimals=4,
             step=0.01,
-            value=albedo.rms,
+            value=float(scene_value(block, 'rms', 0.0)),
             tooltip='Global RMS of the multiplicative noise field (0 disables it).',
         )
         corr_px = make_dspin(
@@ -369,7 +373,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=1000.0,
             decimals=2,
             step=1.0,
-            value=albedo.corr_px,
+            value=float(scene_value(block, 'corr_px', DEFAULT_ALBEDO_CORR_PX)),
             tooltip='Noise correlation length in detector pixels on the disc.',
         )
         form.addRow('Noise RMS:', rms)
@@ -427,8 +431,6 @@ class BodyAppearanceMixin(SimEditorBase):
     def _build_disc_texture_group(self, w: QWidget, idx: int, p: dict[str, Any]) -> QGroupBox:
         """Build the disc-texture group (latitude bands + a storms list)."""
         block = as_map(p.get('disc_texture'))
-        disc = disc_texture_spec_from_params({'disc_texture': block})
-        assert disc is not None
         group = QGroupBox('Disc texture (bands and storms)')
         group.setCheckable(True)
         outer = QVBoxLayout(group)
@@ -439,7 +441,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=2.0,
             decimals=4,
             step=0.01,
-            value=disc.band_amplitude,
+            value=float(scene_value(block, 'band_amplitude', 0.0)),
             tooltip='Multiplicative contrast of the banded pattern (0 disables it).',
         )
         wavenumber = make_dspin(
@@ -447,7 +449,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=64.0,
             decimals=2,
             step=0.5,
-            value=disc.band_wavenumber,
+            value=float(scene_value(block, 'band_wavenumber', DEFAULT_BAND_WAVENUMBER)),
             tooltip='Cosine cycles per radian of body-polar latitude.',
         )
         phase = make_dspin(
@@ -455,7 +457,7 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=360.0,
             decimals=1,
             step=5.0,
-            value=disc.band_phase_deg,
+            value=float(scene_value(block, 'band_phase_deg', 0.0)),
             tooltip='Phase offset of the band pattern, in degrees.',
         )
         form.addRow('Band amplitude:', amplitude)
@@ -844,19 +846,18 @@ class BodyAppearanceMixin(SimEditorBase):
         ellipsoid these keys have no rendering effect, so the group is grayed
         out and its keys stay absent.
         """
-        spec = body_spec_from_params(p, index=idx)
         group = QGroupBox('Mesh shading and detail')
         form = QFormLayout(group)
         shading = QComboBox()
         shading.addItems(['flat', 'gouraud'])
-        shading_idx = shading.findText(spec.shading)
+        shading_idx = shading.findText(str(scene_value(p, 'shading', DEFAULT_SHADING)))
         if shading_idx >= 0:
             shading.setCurrentIndex(shading_idx)
         shading.setToolTip('Rendered mesh shading; flat leaves the key absent.')
         form.addRow('Shading:', shading)
         octaves = QSpinBox()
         octaves.setRange(0, 6)
-        octaves.setValue(spec.mesh.detail_octaves)
+        octaves.setValue(int(scene_value(p, 'mesh_detail_octaves', 0)))
         octaves.setToolTip('Higher-degree relief bands; 0 leaves the key absent.')
         form.addRow('Detail octaves:', octaves)
 
@@ -869,7 +870,11 @@ class BodyAppearanceMixin(SimEditorBase):
             maximum=45.0,
             decimals=3,
             step=0.5,
-            value=(spec.pose_scatter_sigma_deg if has_scatter else _POSE_SCATTER_ENABLE_SIGMA_DEG),
+            value=(
+                float(scene_value(as_map(p.get('pose_scatter')), 'sigma_deg', 0.0))
+                if has_scatter
+                else _POSE_SCATTER_ENABLE_SIGMA_DEG
+            ),
             tooltip='Per-frame Gaussian pose perturbation, sigma per Euler axis (deg).',
         )
         scatter_form.addRow('Sigma (deg):', sigma)

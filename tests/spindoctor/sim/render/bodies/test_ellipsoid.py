@@ -27,9 +27,9 @@ from spindoctor.sim.render.bodies.ellipsoid import (
 from spindoctor.sim.render.bodies.ellipsoid_grid import limb_band
 from spindoctor.sim.render.bodies.relief import synthesize_relief_field
 from spindoctor.sim.render.bodies.render import render_single_body
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.validate import parse_body
 from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
 from spindoctor.support.types import NDArrayFloatType
 
@@ -73,7 +73,7 @@ _ZERO_SETTINGS: dict[str, dict[str, Any]] = {
 def _render_body(extra: dict[str, Any]) -> NDArrayFloatType:
     """The zero-test body, plus ``extra`` keys, drawn by the render path at oversample 1."""
     img = np.zeros((128, 128))
-    spec = body_spec_from_params({**_ZERO_BODY, **extra}, index=0)
+    spec = parse_body({**_ZERO_BODY, **extra})
     render_single_body(img, spec, 0.0, shift_u=0.0, body_streams_seed=7)
     return img
 

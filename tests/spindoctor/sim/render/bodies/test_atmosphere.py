@@ -24,19 +24,18 @@ import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, star_entry
 
 from spindoctor.sim.render.bodies.atmosphere import (
-    DEFAULT_HAZE_ALBEDO,
     AtmosphereSpec,
     apply_atmosphere,
-    atmosphere_spec_from_params,
+    atmosphere_spec_from_block,
     tangent_optical_depth,
 )
 from spindoctor.sim.render.bodies.haze import HazeStructure
 from spindoctor.sim.render.bodies.render import render_single_body
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.errors import SimSceneValidationError
-from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.sim.scene.truth_atmosphere import DEFAULT_HAZE_ALBEDO, BodyAtmosphere
+from spindoctor.sim.scene.validate import parse_body, validate_sim_params
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
@@ -79,7 +78,7 @@ def _render_haze_body(
         body_params['atmosphere'] = atmosphere
     render_single_body(
         img,
-        body_spec_from_params(body_params, index=0),
+        parse_body(body_params),
         0.0,
         shift_u=0.0,
         body_streams_seed=7,
@@ -305,36 +304,38 @@ def test_tangent_optical_depth_shell_adds_a_bump() -> None:
 
 def test_atmosphere_spec_absent_returns_none() -> None:
     """A body without an atmosphere block yields no spec."""
-    assert atmosphere_spec_from_params(None, oversample=1) is None
+    assert atmosphere_spec_from_block(None, oversample=1) is None
 
 
 def test_atmosphere_spec_scales_pixel_lengths_by_oversample() -> None:
     """Pixel lengths scale with the oversampling factor; dimensionless ones do not."""
-    block = {'scale_height_px': 4.0, 'tau_ref': 1.2, 'ref_altitude_px': 2.0, 'detached_px': 6.0}
-    spec = atmosphere_spec_from_params(block, oversample=4)
+    block = BodyAtmosphere(scale_height_px=4.0, tau_ref=1.2, ref_altitude_px=2.0, detached_px=6.0)
+    spec = atmosphere_spec_from_block(block, oversample=4)
     assert spec is not None
     assert spec.scale_height_px == pytest.approx(16.0)
 
 
 def test_atmosphere_spec_keeps_tau_ref_dimensionless() -> None:
     """The optical depth is dimensionless and is not scaled by oversample."""
-    block = {'scale_height_px': 4.0, 'tau_ref': 1.2}
-    spec = atmosphere_spec_from_params(block, oversample=4)
+    block = BodyAtmosphere(scale_height_px=4.0, tau_ref=1.2)
+    spec = atmosphere_spec_from_block(block, oversample=4)
     assert spec is not None
     assert spec.tau_ref == pytest.approx(1.2)
 
 
 def test_atmosphere_spec_reads_the_haze_albedo() -> None:
     """A stated haze albedo reaches the spec unscaled by oversample."""
-    block = {'scale_height_px': 4.0, 'tau_ref': 1.2, 'albedo': 0.25}
-    spec = atmosphere_spec_from_params(block, oversample=4)
+    block = BodyAtmosphere(scale_height_px=4.0, tau_ref=1.2, albedo=0.25)
+    spec = atmosphere_spec_from_block(block, oversample=4)
     assert spec is not None
     assert spec.albedo == 0.25
 
 
 def test_atmosphere_spec_defaults_the_haze_albedo() -> None:
     """A block without an albedo takes the renderer's default."""
-    spec = atmosphere_spec_from_params({'scale_height_px': 4.0, 'tau_ref': 1.2}, oversample=1)
+    spec = atmosphere_spec_from_block(
+        BodyAtmosphere(scale_height_px=4.0, tau_ref=1.2), oversample=1
+    )
     assert spec is not None
     assert spec.albedo == DEFAULT_HAZE_ALBEDO
 
@@ -647,7 +648,7 @@ def test_body_mask_covers_only_the_solid_silhouette() -> None:
     img = np.zeros((_C_SIZE, _C_SIZE), dtype=np.float64)
     mask, body_info = render_single_body(
         img,
-        body_spec_from_params(_compose_body(), index=0),
+        parse_body(_compose_body()),
         0.0,
         shift_u=0.0,
         body_streams_seed=7,

@@ -46,22 +46,17 @@ from typing import cast
 
 import numpy as np
 
+from spindoctor.sim.scene.truth_body import PHOTOMETRIC_LAWS
 from spindoctor.sim.shared.inplace import result_array, ufunc_result
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'MINNAERT_CEILING',
-    'PHOTOMETRIC_LAWS',
     'incidence_cosines',
     'shade_surface',
     'surge_factor',
 ]
-
-# The scene-selectable law vocabulary (schema-validated).
-PHOTOMETRIC_LAWS: frozenset[str] = frozenset(
-    {'lambert', 'lommel_seeliger', 'minnaert', 'lunar_lambert'}
-)
 
 MINNAERT_CEILING = 2.0
 """The largest value the Minnaert law takes: the Lommel-Seeliger law's limb value."""
@@ -150,7 +145,7 @@ def shade_surface(
     Parameters:
         cos_incidence: ``mu0`` per pixel (negative values are night side).
         cos_emission: ``mu`` per pixel; > 0 marks the visible hemisphere.
-        law: One of :data:`PHOTOMETRIC_LAWS`.
+        law: One of :data:`~spindoctor.sim.scene.truth_body.PHOTOMETRIC_LAWS`.
         phase_angle: Phase angle in radians (drives the lunar-Lambert blend
             and the opposition surge).
         minnaert_k: Minnaert exponent (used by ``law='minnaert'`` only).

@@ -21,7 +21,7 @@ from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, render_ell
 from spindoctor.sim.render.bodies.ellipsoid_grid import CraterPlane, crater_plane_site
 from spindoctor.sim.render.bodies.placement import BodyCoverage, body_canvas, finish_single_body
 from spindoctor.sim.render.bodies.render import render_single_body
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.scene.validate import parse_body
 from spindoctor.sim.shared.ellipsoid import project_ellipsoid
 from spindoctor.support.types import NDArrayFloatType
 
@@ -59,7 +59,7 @@ def _render(
     }
     _, info = render_single_body(
         img,
-        body_spec_from_params(shifted, index=0),
+        parse_body(shifted),
         0.0,
         shift_u=0.0,
         body_streams_seed=11,
@@ -366,9 +366,7 @@ def test_body_that_misses_the_frame_is_never_drawn(
     monkeypatch.setattr(*patched, _refuse_to_draw)
     img = np.zeros((_SIZE, _SIZE))
     body = {**disc_body(-200.0, 32.0, 50.0, name='far'), **keys}
-    mask, info = render_single_body(
-        img, body_spec_from_params(body, index=0), 0.0, shift_u=0.0, body_streams_seed=7
-    )
+    mask, info = render_single_body(img, parse_body(body), 0.0, shift_u=0.0, body_streams_seed=7)
     assert not mask.any()
     assert info['inventory']['v_max_unclipped'] == pytest.approx(-150.0)
 

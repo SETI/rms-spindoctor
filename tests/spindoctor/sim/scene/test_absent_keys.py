@@ -17,7 +17,7 @@ from spindoctor.sim.scene.validate import validate_sim_params
 def test_a_non_number_pose_entry_is_refused() -> None:
     """An entry of ``pose_euler_deg`` that isn't a number is refused."""
     scene = body_scene(body={'shape_model': 'polyhedral_mesh', 'pose_euler_deg': [10.0, 'x', 5.0]})
-    message = 'bodies[0].pose_euler_deg[] must be a number when present'
+    message = "bodies[0].pose_euler_deg[1]: expected a number, got str 'x'"
     with pytest.raises(SimSceneValidationError, match=re.escape(message)):
         validate_sim_params(scene, source='probe')
 
@@ -27,7 +27,7 @@ def test_a_non_number_cloud_center_entry_is_refused() -> None:
     blob = {'center_vu': ['x', 1.0], 'sigma_px': 2.0, 'amplitude': 0.2}
     atmosphere = {'scale_height_px': 2.0, 'tau_ref': 0.5, 'cloud_blobs': [blob]}
     scene = body_scene(body={'atmosphere': atmosphere})
-    message = 'bodies[0].atmosphere.cloud_blobs[0].center_vu[] must be a number when present'
+    message = "bodies[0].atmosphere.cloud_blobs[0].center_vu[0]: expected a number, got str 'x'"
     with pytest.raises(SimSceneValidationError, match=re.escape(message)):
         validate_sim_params(scene, source='probe')
 

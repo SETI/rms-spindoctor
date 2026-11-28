@@ -32,24 +32,27 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.render.bodies.atmosphere import HaloScreen, atmosphere_spec_from_params
+from spindoctor.schema import parse
+from spindoctor.sim.render.bodies.atmosphere import HaloScreen, atmosphere_spec_from_block
 from spindoctor.sim.render.bodies.haze import (
-    HAZE_STRUCTURE_KEYS,
     HEMISPHERE_BLEND_HALF_WIDTH_DEG,
-    SECTOR_REFERENCE_HALF_ANGLE_DEG,
     CloudBlob,
     HazeStructure,
     apply_disc_structure,
-    haze_structure_from_params,
+    haze_structure_from_block,
     hemisphere_weight,
     latitude_sine,
     scale_height_field,
 )
 from spindoctor.sim.render.bodies.render import render_single_body
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.scene.errors import SimSceneValidationError
-from spindoctor.sim.scene.rules_body import MIN_SECTOR_SHARPNESS_GRADIENT
-from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.sim.scene.truth_atmosphere import (
+    HAZE_STRUCTURE_KEYS,
+    MIN_SECTOR_SHARPNESS_GRADIENT,
+    SECTOR_REFERENCE_HALF_ANGLE_DEG,
+    BodyAtmosphere,
+)
+from spindoctor.sim.scene.validate import parse_body, validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 220
@@ -112,7 +115,7 @@ def _render_body(
     }
     _mask, body_info = render_single_body(
         img,
-        body_spec_from_params(body_params, index=0),
+        parse_body(body_params),
         0.0,
         shift_u=0.0,
         body_streams_seed=7,
@@ -152,6 +155,11 @@ def _render(
         semi_b=semi_b,
     )
     return img
+
+
+def _block(atmosphere: dict[str, Any]) -> BodyAtmosphere:
+    """The typed form of an ``atmosphere`` block."""
+    return parse(BodyAtmosphere, atmosphere, source='probe')
 
 
 def _with(**structure: Any) -> dict[str, Any]:
@@ -245,7 +253,7 @@ def _disc_mean(img: NDArrayFloatType, *, southern: bool) -> float:
 
 def test_plain_atmosphere_block_carries_no_structure() -> None:
     """A block naming no structure key leaves the spec's structure at None."""
-    spec = atmosphere_spec_from_params(dict(_BASE_ATMOSPHERE), oversample=1)
+    spec = atmosphere_spec_from_block(_block(dict(_BASE_ATMOSPHERE)), oversample=1)
     assert spec is not None
     assert spec.structure is None
 
@@ -261,15 +269,15 @@ def test_any_structure_key_builds_a_structure(key: str) -> None:
         'sector_sharpness_gradient': 0.3,
         'cloud_blobs': [{'center_vu': [0.0, 0.0], 'sigma_px': 3.0, 'amplitude': 0.2}],
     }
-    spec = atmosphere_spec_from_params(_with(**{key: sample[key]}), oversample=1)
+    spec = atmosphere_spec_from_block(_block(_with(**{key: sample[key]})), oversample=1)
     assert spec is not None
     assert spec.structure is not None
 
 
 def test_structure_scales_cloud_pixel_lengths_by_oversample() -> None:
     """Cloud positions and widths are grid pixels, so oversampling scales them."""
-    structure = haze_structure_from_params(
-        _with(cloud_blobs=[{'center_vu': [4.0, -2.0], 'sigma_px': 3.0, 'amplitude': 0.2}]),
+    structure = haze_structure_from_block(
+        _block(_with(cloud_blobs=[{'center_vu': [4.0, -2.0], 'sigma_px': 3.0, 'amplitude': 0.2}])),
         oversample=4,
     )
     assert structure is not None
@@ -281,8 +289,8 @@ def test_structure_scales_cloud_pixel_lengths_by_oversample() -> None:
 
 def test_structure_keeps_dimensionless_fields_unscaled() -> None:
     """Amplitudes, ratios, and angles do not move with the render grid."""
-    structure = haze_structure_from_params(
-        _with(ns_falloff_ratio=1.6, axis_tilt_deg=8.0, ns_asymmetry_amplitude=0.25),
+    structure = haze_structure_from_block(
+        _block(_with(ns_falloff_ratio=1.6, axis_tilt_deg=8.0, ns_asymmetry_amplitude=0.25)),
         oversample=4,
     )
     assert structure is not None
@@ -876,7 +884,7 @@ def test_validator_rejects_an_unknown_cloud_blob_key() -> None:
 def test_validator_requires_a_cloud_blob_amplitude() -> None:
     """A cloud with no amplitude has no rendered effect, so it fails."""
     scene = _scene_with_atmosphere(_with(cloud_blobs=[{'sigma_px': 2.0}]))
-    with pytest.raises(SimSceneValidationError, match='amplitude is required'):
+    with pytest.raises(SimSceneValidationError, match=r"missing required keys: \['amplitude'\]"):
         validate_sim_params(scene, source='probe')
 
 

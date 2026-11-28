@@ -53,29 +53,38 @@ construction.
 """
 
 import math
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 
 from spindoctor.sim.render.bodies.relief import synthesize_albedo_field
-from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.scene.fields import value_or
+from spindoctor.sim.scene.truth_body import (
+    DEFAULT_ALBEDO_CORR_PX,
+    DEFAULT_BAND_WAVENUMBER,
+    DEFAULT_MOON_ALBEDO_FACTOR,
+    DEFAULT_SHADOW_DARKNESS,
+    DEFAULT_SPOT_ALBEDO_FACTOR,
+    DEFAULT_SPOT_LON_DEG,
+    DEFAULT_SPOT_RADIUS_DEG,
+    DEFAULT_TRANSIT_RADIUS_PX,
+    BodyAlbedoTexture,
+    BodyDiscTexture,
+    BodySurfaceSpot,
+    BodyTransit,
+)
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'AlbedoTextureSpec',
     'DiscTextureSpec',
     'TransitSpec',
-    'albedo_spec_from_params',
+    'albedo_spec_from_block',
     'apply_transits',
-    'disc_texture_spec_from_params',
+    'disc_texture_spec_from_block',
     'surface_texture_factor',
-    'transit_specs_from_params',
+    'transit_specs_from_block',
 ]
-
-# Default albedo-noise correlation length in detector pixels on the disc.
-_DEFAULT_ALBEDO_CORR_PX = 20.0
 
 
 @dataclass(frozen=True)
@@ -92,7 +101,7 @@ class AlbedoTextureSpec:
     """
 
     rms: float = 0.0
-    corr_px: float = _DEFAULT_ALBEDO_CORR_PX
+    corr_px: float = DEFAULT_ALBEDO_CORR_PX
     spots: tuple[tuple[float, float, float, float], ...] = ()
     seed: int = 0
 
@@ -141,101 +150,97 @@ class TransitSpec:
     shadow: tuple[float, float, float, float] | None = None
 
 
-def _spot_tuple(spot: Mapping[str, Any]) -> tuple[float, float, float, float]:
-    """Resolve one spot/storm mapping into its hashable tuple form."""
+def _spot_tuple(spot: BodySurfaceSpot) -> tuple[float, float, float, float]:
+    """A spot or storm entry as ``(lat_deg, lon_deg, radius_deg, albedo_factor)``."""
     return (
-        float(scene_value(spot, 'lat_deg', 0.0)),
-        float(scene_value(spot, 'lon_deg', 90.0)),
-        float(scene_value(spot, 'radius_deg', 10.0)),
-        float(scene_value(spot, 'albedo_factor', 0.7)),
+        value_or(spot.lat_deg, 0.0),
+        value_or(spot.lon_deg, DEFAULT_SPOT_LON_DEG),
+        value_or(spot.radius_deg, DEFAULT_SPOT_RADIUS_DEG),
+        value_or(spot.albedo_factor, DEFAULT_SPOT_ALBEDO_FACTOR),
     )
 
 
-def albedo_spec_from_params(
-    block: Mapping[str, Any] | None, *, seed: int
+def albedo_spec_from_block(
+    block: BodyAlbedoTexture | None, *, seed: int
 ) -> AlbedoTextureSpec | None:
-    """Build an :class:`AlbedoTextureSpec` from a body's ``albedo_texture`` block.
+    """Resolve one body's ``albedo_texture`` block for rendering.
 
     A key that the block leaves out takes its default.
 
     Parameters:
-        block: One body's ``albedo_texture`` mapping, or None.
+        block: One body's ``albedo_texture`` block, or None.
         seed: The body's 'albedo' stream seed.
 
     Returns:
-        The resolved spec, or None when ``block`` is not a mapping.
+        The resolved spec, or None when the body has no albedo texture.
     """
-    if not isinstance(block, Mapping):
+    if block is None:
         return None
     return AlbedoTextureSpec(
-        rms=float(scene_value(block, 'rms', 0.0)),
-        corr_px=float(scene_value(block, 'corr_px', _DEFAULT_ALBEDO_CORR_PX)),
-        spots=tuple(_spot_tuple(spot) for spot in block.get('spots') or []),
+        rms=value_or(block.rms, 0.0),
+        corr_px=value_or(block.corr_px, DEFAULT_ALBEDO_CORR_PX),
+        spots=tuple(_spot_tuple(spot) for spot in block.spots or ()),
         seed=int(seed),
     )
 
 
-def disc_texture_spec_from_params(body_params: Mapping[str, Any]) -> DiscTextureSpec | None:
-    """Build a :class:`DiscTextureSpec` from a body mapping, or None.
+def disc_texture_spec_from_block(block: BodyDiscTexture | None) -> DiscTextureSpec | None:
+    """Resolve one body's ``disc_texture`` block for rendering.
 
     A key that the block leaves out takes its default.
 
     Parameters:
-        body_params: One scene body entry.
+        block: One body's ``disc_texture`` block, or None.
 
     Returns:
-        The resolved spec, or None when the body has no ``disc_texture``.
+        The resolved spec, or None when the body has no disc texture.
     """
-    block = body_params.get('disc_texture')
-    if not isinstance(block, Mapping):
+    if block is None:
         return None
     return DiscTextureSpec(
-        band_amplitude=float(scene_value(block, 'band_amplitude', 0.0)),
-        band_wavenumber=float(scene_value(block, 'band_wavenumber', 8.0)),
-        band_phase_deg=float(scene_value(block, 'band_phase_deg', 0.0)),
-        storms=tuple(_spot_tuple(storm) for storm in block.get('storms') or []),
+        band_amplitude=value_or(block.band_amplitude, 0.0),
+        band_wavenumber=value_or(block.band_wavenumber, DEFAULT_BAND_WAVENUMBER),
+        band_phase_deg=value_or(block.band_phase_deg, 0.0),
+        storms=tuple(_spot_tuple(storm) for storm in block.storms or ()),
     )
 
 
-def transit_specs_from_params(body_params: Mapping[str, Any]) -> tuple[TransitSpec, ...]:
-    """Build the body's :class:`TransitSpec` tuple (empty without ``transits``).
+def transit_specs_from_block(transits: tuple[BodyTransit, ...] | None) -> tuple[TransitSpec, ...]:
+    """Resolve one body's ``transits`` list for rendering.
 
     A key that an entry leaves out takes its default.
 
     Parameters:
-        body_params: One scene body entry.
+        transits: One body's ``transits`` entries, or None.
 
     Returns:
-        One spec per ``transits`` entry, in scene order.
+        One spec per entry, in scene order; empty when the body has no transits.
     """
-    entries = body_params.get('transits')
-    if not isinstance(entries, list):
-        return ()
     specs: list[TransitSpec] = []
-    for entry in entries:
-        moon = entry.get('moon')
-        shadow = entry.get('shadow')
+    for entry in transits or ():
+        moon = entry.moon
+        shadow = entry.shadow
         specs.append(
             TransitSpec(
                 moon=(
-                    (
-                        float(scene_value(moon, 'dv_px', 0.0)),
-                        float(scene_value(moon, 'du_px', 0.0)),
-                        float(scene_value(moon, 'radius_px', 5.0)),
-                        float(scene_value(moon, 'albedo_factor', 1.0)),
+                    None
+                    if moon is None
+                    else (
+                        value_or(moon.dv_px, 0.0),
+                        value_or(moon.du_px, 0.0),
+                        value_or(moon.radius_px, DEFAULT_TRANSIT_RADIUS_PX),
+                        value_or(moon.albedo_factor, DEFAULT_MOON_ALBEDO_FACTOR),
                     )
-                    if isinstance(moon, Mapping)
-                    else None
                 ),
                 shadow=(
-                    (
-                        float(scene_value(shadow, 'dv_px', 0.0)),
-                        float(scene_value(shadow, 'du_px', 0.0)),
-                        float(scene_value(shadow, 'radius_px', 5.0)),
-                        float(scene_value(shadow, 'darkness', 0.8)),
+                    None
+                    if shadow is None
+                    else (
+                        value_or(shadow.dv_px, 0.0),
+                        value_or(shadow.du_px, 0.0),
+                        value_or(shadow.radius_px, DEFAULT_TRANSIT_RADIUS_PX),
+                        value_or(shadow.darkness, DEFAULT_SHADOW_DARKNESS),
                     )
-                    if isinstance(shadow, Mapping)
-                    else None
                 ),
             )
         )

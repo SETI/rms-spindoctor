@@ -136,6 +136,12 @@ LUMPINESS_RMS_PER_UNIT = 0.125
 # Radius floor, so an extreme lumpiness cannot fold the mesh through its center.
 _MIN_RADIUS = 0.2
 
+# The relief amplitude, latitude bands, and longitude divisions of a mesh body whose
+# scene entry leaves the key out.
+DEFAULT_MESH_LUMPINESS = 0.3
+DEFAULT_MESH_N_LAT = 16
+DEFAULT_MESH_N_LON = 32
+
 
 def _octave_degrees(octave: int) -> tuple[int, int]:
     """The inclusive harmonic-degree band of detail octave ``octave`` (>= 1)."""
@@ -625,9 +631,9 @@ class MeshBodySpec:
             relief (see :func:`make_irregular_mesh`); part of the published shape.
     """
 
-    lumpiness: float = 0.3
-    n_lat: int = 16
-    n_lon: int = 32
+    lumpiness: float = DEFAULT_MESH_LUMPINESS
+    n_lat: int = DEFAULT_MESH_N_LAT
+    n_lon: int = DEFAULT_MESH_N_LON
     seed: int = 0
     pose_euler_deg: tuple[float, float, float] = field(default=(0.0, 0.0, 0.0))
     detail_octaves: int = 0
@@ -654,9 +660,9 @@ def mesh_spec_from_params(body_params: Mapping[str, Any]) -> MeshBodySpec:
     if len(values) != 3:
         raise ValueError(f'pose_euler_deg must have 3 angles; got {pose!r}')
     return MeshBodySpec(
-        lumpiness=float(scene_value(body_params, 'mesh_lumpiness', 0.3)),
-        n_lat=int(scene_value(body_params, 'mesh_n_lat', 16)),
-        n_lon=int(scene_value(body_params, 'mesh_n_lon', 32)),
+        lumpiness=float(scene_value(body_params, 'mesh_lumpiness', DEFAULT_MESH_LUMPINESS)),
+        n_lat=int(scene_value(body_params, 'mesh_n_lat', DEFAULT_MESH_N_LAT)),
+        n_lon=int(scene_value(body_params, 'mesh_n_lon', DEFAULT_MESH_N_LON)),
         seed=int(scene_value(body_params, 'mesh_seed', 0)),
         pose_euler_deg=(values[0], values[1], values[2]),
         detail_octaves=int(scene_value(body_params, 'mesh_detail_octaves', 0)),

@@ -13,6 +13,7 @@ from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, zero_bias
 
 from spindoctor.sim.render.bodies import render as body_render
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
+from spindoctor.sim.seeds import body_identity_seed, derive_effect_seed
 
 _BODY_GEOMETRY: dict[str, Any] = {
     'semi_a_px': 20.0,
@@ -78,3 +79,9 @@ def test_twin_bodies_do_not_share_a_cached_shape_array() -> None:
     render_scene(_twin_body_scene())
     info = body_render._render_ellipsoid_shape_cached.cache_info()
     assert info.hits == 0
+
+
+def test_identity_seed_mixes_in_the_body_index_and_upper_cased_name() -> None:
+    """The seed is the scene seed's stream for the body's index and upper-cased name."""
+    seed = body_identity_seed(2_718_281_828, 'mimas', 1)
+    assert seed == derive_effect_seed(2_718_281_828, 'body:1:MIMAS')

@@ -23,7 +23,7 @@ from spindoctor.sim.render.bodies.atmosphere import (
     AtmosphereSpec,
     HaloScreen,
     apply_atmosphere,
-    atmosphere_spec_from_params,
+    atmosphere_spec_from_block,
     halo_reach,
 )
 from spindoctor.sim.render.bodies.ellipsoid import (
@@ -41,9 +41,25 @@ from spindoctor.sim.render.bodies.placement import (
     finish_unseen_body,
 )
 from spindoctor.sim.render.bodies.relief import synthesize_relief_field
-from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
-from spindoctor.sim.render.bodies.texture import albedo_spec_from_params
-from spindoctor.sim.seeds import derive_effect_seed
+from spindoctor.sim.render.bodies.texture import (
+    albedo_spec_from_block,
+    disc_texture_spec_from_block,
+    transit_specs_from_block,
+)
+from spindoctor.sim.scene.fields import value_or
+from spindoctor.sim.scene.truth_body import (
+    DEFAULT_ANTI_ALIASING,
+    DEFAULT_CRATER_MAX_RADIUS,
+    DEFAULT_CRATER_MIN_RADIUS,
+    DEFAULT_CRATER_POWER_LAW_EXPONENT,
+    DEFAULT_CRATER_RELIEF_SCALE,
+    DEFAULT_LIMB_RELIEF_CORR_DEG,
+    DEFAULT_MINNAERT_K,
+    DEFAULT_PHOTOMETRIC_LAW,
+    DEFAULT_SURGE_WIDTH_DEG,
+    Body,
+)
+from spindoctor.sim.seeds import body_identity_seed, derive_effect_seed
 from spindoctor.sim.shared.ellipsoid import outline_half_extents
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -104,7 +120,7 @@ def clear_ellipsoid_shape_caches() -> None:
 
 def render_single_body(
     img: NDArrayFloatType,
-    spec: BodySpec,
+    body: Body,
     shift_v: float,
     *,
     shift_u: float,
@@ -112,6 +128,7 @@ def render_single_body(
     body_index: int = 0,
     oversample: int = 1,
     margin: int = 0,
+    roll_deg: float = 0.0,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render a single body and composite it over the image.
 
@@ -121,21 +138,22 @@ def render_single_body(
 
     Parameters:
         img: Image array to composite over in place.
-        spec: The body, parsed by
-            :func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`.
+        body: The body, parsed by :func:`~spindoctor.sim.scene.validate.parse_body`.
             Its centers and axes must already be scaled to the render grid.  Its
             atmosphere's pixel lengths are scaled here, by ``oversample``.  Its
             surface texture and transit lengths stay in detector pixels, the grid
-            the ellipsoid renderer lays surface detail out on.
+            the ellipsoid renderer lays surface detail out on.  A key it leaves out
+            takes its declared default, and a body without a name takes the name
+            ``body_index`` gives it.
         shift_v: The v component of the planted offset turned by the roll (R d), on the
             render grid, added to the body's center.
         shift_u: The u component of the planted offset turned by the roll, likewise.
         body_streams_seed: The scene's seed for every body's random streams.  Each
             body mixes its index and name into it to get its own identity seed (see
-            :func:`~spindoctor.sim.render.bodies.spec.body_identity_seed`).  Its
-            craters draw from that identity seed, and its relief terrain, albedo
-            noise, and mesh pose scatter each from a named stream of it, so bodies
-            with identical geometry still get independent surfaces.
+            :func:`~spindoctor.sim.seeds.body_identity_seed`).  Its craters draw from
+            that identity seed, and its relief terrain, albedo noise, and mesh pose
+            scatter each from a named stream of it, so bodies with identical geometry
+            still get independent surfaces.
         body_index: Stable index of this body in the scene's body list, mixed
             into the body's identity seed alongside the body name.
         oversample: The render grid's oversampling factor.  An ellipsoid is shaded
@@ -145,6 +163,11 @@ def render_single_body(
         margin: How many pixels the image extends past the frame on each side.  The
             body is painted across the margin as well as the frame; its center, its
             inventory entry, and its drawing belong to the frame.
+        roll_deg: The planted roll the body was turned by, in degrees; 0 for the body
+            as the scene states it.  The body's own fields already carry the roll,
+            except the crater layout, which is drawn on the image grid: the ellipsoid
+            renderer lays the craters out for the unrolled body and turns them by this
+            angle.
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
@@ -156,28 +179,31 @@ def render_single_body(
     """
     size_v = img.shape[0] - 2 * margin
     size_u = img.shape[1] - 2 * margin
-    center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + shift_v
-    center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + shift_u
+    center_v = (size_v / 2.0 if body.center_v is None else body.center_v) + shift_v
+    center_u = (size_u / 2.0 if body.center_u is None else body.center_u) + shift_u
 
     # An irregular body renders from a polyhedral mesh at a scene-supplied pose;
     # every other body is an ellipsoid.
-    if spec.shape_model == 'polyhedral_mesh':
+    if body.shape_model == 'polyhedral_mesh':
+        semi_a_px, semi_b_px, semi_c_px = body.semi_axes_px()
         return render_single_mesh_body(
             img,
-            spec,
+            body,
             center_v=center_v,
             center_u=center_u,
-            semi_a_px=spec.semi_a_px,
-            semi_b_px=spec.semi_b_px,
-            semi_c_px=spec.semi_c_px,
-            illumination_angle=float(np.radians(spec.illumination_angle)),
-            phase_angle=float(np.radians(spec.phase_angle)),
+            semi_a_px=semi_a_px,
+            semi_b_px=semi_b_px,
+            semi_c_px=semi_c_px,
+            illumination_angle=float(np.radians(value_or(body.illumination_angle, 0.0))),
+            phase_angle=float(np.radians(value_or(body.phase_angle, 0.0))),
             # Silhouette anti-aliasing is consumed only at oversample 1,
             # matching the ellipsoid renderer: an oversampled scene already
             # resolves the limb on its own grid, and supersampling the mesh
             # rasterizer on top of it would multiply the render cost for no
             # rendered difference worth having.
-            anti_aliasing=spec.anti_aliasing if oversample == 1 else 0.0,
+            anti_aliasing=(
+                value_or(body.anti_aliasing, DEFAULT_ANTI_ALIASING) if oversample == 1 else 0.0
+            ),
             oversample=oversample,
             body_streams_seed=body_streams_seed,
             body_index=body_index,
@@ -186,19 +212,20 @@ def render_single_body(
 
     return _render_single_ellipsoid_body(
         img,
-        spec,
+        body,
         center_v=center_v,
         center_u=center_u,
         body_streams_seed=body_streams_seed,
         body_index=body_index,
         oversample=oversample,
         margin=margin,
+        roll_deg=roll_deg,
     )
 
 
 def _render_single_ellipsoid_body(
     img: NDArrayFloatType,
-    spec: BodySpec,
+    body: Body,
     *,
     center_v: float,
     center_u: float,
@@ -206,6 +233,7 @@ def _render_single_ellipsoid_body(
     body_index: int,
     oversample: int,
     margin: int,
+    roll_deg: float,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render one ellipsoid body into the image in place.
 
@@ -214,22 +242,24 @@ def _render_single_ellipsoid_body(
 
     Parameters:
         img: Image array to modify in-place.
-        spec: The body, scaled to the render grid.
+        body: The body, scaled to the render grid.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
         body_streams_seed: The scene's seed for every body's random streams.
         body_index: The body's position in the scene's body list.
         oversample: The render grid's oversampling factor.
         margin: How many pixels the image extends past the frame on each side.
+        roll_deg: The planted roll the body was turned by, in degrees.
 
     Returns:
         Tuple of (body_mask, body_info_dict), as :func:`render_single_body` returns.
     """
     size_v = img.shape[0] - 2 * margin
     size_u = img.shape[1] - 2 * margin
-    seeds = _surface_seeds(spec, body_streams_seed=body_streams_seed, body_index=body_index)
-    atmosphere_spec = atmosphere_spec_from_params(spec.atmosphere, oversample=int(oversample))
-    reach_v, reach_u = _ellipsoid_reach(spec, atmosphere_spec, relief_seed=seeds.relief_seed)
+    body_name = body.name_at(body_index).upper()
+    seeds = _surface_seeds(body, body_streams_seed=body_streams_seed, body_index=body_index)
+    atmosphere_spec = atmosphere_spec_from_block(body.atmosphere, oversample=int(oversample))
+    reach_v, reach_u = _ellipsoid_reach(body, atmosphere_spec, relief_seed=seeds.relief_seed)
     canvas = body_canvas(
         (size_v, size_u),
         center_v=center_v,
@@ -239,26 +269,27 @@ def _render_single_ellipsoid_body(
         oversample=oversample,
         frame_margin=margin,
     )
-    half_extent_v, half_extent_u = _projected_half_extents(spec)
+    half_extent_v, half_extent_u = _projected_half_extents(body)
     if canvas.is_empty:
         return finish_unseen_body(
             (img.shape[0], img.shape[1]),
-            body_name=spec.name.upper(),
+            body_name=body_name,
             center_v=center_v,
             center_u=center_u,
             half_extent_v=half_extent_v,
             half_extent_u=half_extent_u,
-            range_km=spec.range_km,
+            range_km=body.range_km,
         )
     # The silhouette comes back separately from the radiance: a transit umbra or a
     # zero-albedo spot renders black but still belongs to the body.
-    ellipsoid_spec = _ellipsoid_spec(spec, seeds, oversample=oversample)
+    ellipsoid_spec = _ellipsoid_spec(body, seeds, oversample=oversample, roll_deg=roll_deg)
+    crater_fill = value_or(body.crater_fill, 0.0)
     crater_canvas = canvas
-    if spec.roll_deg != 0.0 and spec.crater_fill > 0.0:
+    if roll_deg != 0.0 and crater_fill > 0.0:
         # A rolled body lays its craters out where the unrolled body lays them, on
         # the unrolled body's frame or plane, and then turns them.
         unrolled_reach = _ellipsoid_reach(
-            replace(spec, rotation_z=spec.rotation_z + spec.roll_deg),
+            replace(body, rotation_z=value_or(body.rotation_z, 0.0) + roll_deg),
             atmosphere_spec,
             relief_seed=seeds.relief_seed,
         )
@@ -270,7 +301,9 @@ def _render_single_ellipsoid_body(
             reach_u=unrolled_reach[1],
             oversample=oversample,
         )
-    crater_plane = _crater_plane(canvas, crater_canvas, spec, oversample=oversample)
+    crater_plane = _crater_plane(
+        canvas, crater_canvas, crater_fill=crater_fill, roll_deg=roll_deg, oversample=oversample
+    )
     ellipsoid_render = (
         _render_ellipsoid_shape_cached(size_v, size_u, crater_plane, ellipsoid_spec)
         if canvas.on_frame
@@ -279,25 +312,30 @@ def _render_single_ellipsoid_body(
         )
     )
     body_shape, halo = _apply_body_atmosphere(
-        ellipsoid_render, spec, atmosphere_spec, center=canvas.center
+        ellipsoid_render, body, atmosphere_spec, center=canvas.center
     )
     return finish_single_body(
         img,
         body_shape,
         ellipsoid_render.silhouette,
-        body_name=spec.name.upper(),
+        body_name=body_name,
         center_v=center_v,
         center_u=center_u,
         half_extent_v=half_extent_v,
         half_extent_u=half_extent_u,
         canvas=canvas,
-        range_km=spec.range_km,
+        range_km=body.range_km,
         halo=halo,
     )
 
 
 def _crater_plane(
-    canvas: BodyCanvas, crater_canvas: BodyCanvas, spec: BodySpec, *, oversample: int
+    canvas: BodyCanvas,
+    crater_canvas: BodyCanvas,
+    *,
+    crater_fill: float,
+    roll_deg: float,
+    oversample: int,
 ) -> CraterPlane | None:
     """The detector grid a body's craters are laid out on, when it is not the canvas.
 
@@ -310,7 +348,8 @@ def _crater_plane(
         canvas: The body's canvas.
         crater_canvas: The canvas whose frame or plane the craters are laid out on:
             ``canvas``, or the unrolled body's canvas for a rolled body.
-        spec: The body (its crater fill and roll are read).
+        crater_fill: The body's crater fill.
+        roll_deg: The planted roll the body was turned by, in degrees.
         oversample: The render grid's oversampling factor.
 
     Returns:
@@ -318,7 +357,7 @@ def _crater_plane(
         frame or a body without craters, whose craters are laid out on the canvas
         itself.
     """
-    if spec.crater_fill <= 0.0 or (canvas.on_frame and spec.roll_deg == 0.0):
+    if crater_fill <= 0.0 or (canvas.on_frame and roll_deg == 0.0):
         return None
     # The plane of a body drawn on the frame is the frame.
     rows = crater_canvas.plane_rows
@@ -331,7 +370,7 @@ def _crater_plane(
 
 
 def _ellipsoid_reach(
-    spec: BodySpec, atmosphere_spec: AtmosphereSpec | None, *, relief_seed: int
+    body: Body, atmosphere_spec: AtmosphereSpec | None, *, relief_seed: int
 ) -> tuple[float, float]:
     """How far an ellipsoid body, its relief, and its halo reach from its center.
 
@@ -341,25 +380,29 @@ def _ellipsoid_reach(
     edge.
 
     Parameters:
-        spec: The body, scaled to the render grid.
+        body: The body, scaled to the render grid.
         atmosphere_spec: The body's haze spec on the render grid, or None.
         relief_seed: The seed of the body's relief terrain.
 
     Returns:
         The reach along v and along u, in render-grid pixels.
     """
-    rotation_z = math.radians(spec.rotation_z)
-    sub_observer_lat = math.radians(spec.sub_observer_lat_deg)
+    semi_a_px, semi_b_px, semi_c_px = body.semi_axes_px()
+    rotation_z = math.radians(value_or(body.rotation_z, 0.0))
+    sub_observer_lat = math.radians(value_or(body.sub_observer_lat_deg, 0.0))
+    relief_rms = value_or(body.limb_relief_rms, 0.0)
     lift = 1.0
-    if spec.limb_relief_rms > 0.0:
+    if relief_rms > 0.0:
         field = synthesize_relief_field(
-            spec.limb_relief_rms, spec.limb_relief_corr_deg, relief_seed
+            relief_rms,
+            value_or(body.limb_relief_corr_deg, DEFAULT_LIMB_RELIEF_CORR_DEG),
+            relief_seed,
         )
         lift += max(abs(field.h_min), abs(field.h_max))
     half_v, half_u = outline_half_extents(
-        spec.semi_a_px,
-        semi_b_px=spec.semi_b_px,
-        semi_c_px=spec.semi_c_px,
+        semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
         rotation_z=rotation_z,
         sub_observer_lat=sub_observer_lat,
     )
@@ -368,12 +411,12 @@ def _ellipsoid_reach(
     if atmosphere_spec is not None:
         halo_v, halo_u = halo_reach(
             atmosphere_spec,
-            semi_a=spec.semi_a_px,
-            semi_b=spec.semi_b_px,
-            semi_c=spec.semi_c_px,
+            semi_a=semi_a_px,
+            semi_b=semi_b_px,
+            semi_c=semi_c_px,
             rotation_z=rotation_z,
             sub_observer_lat=sub_observer_lat,
-            phase_angle=math.radians(spec.phase_angle),
+            phase_angle=math.radians(value_or(body.phase_angle, 0.0)),
         )
         reach_v = max(reach_v, halo_v)
         reach_u = max(reach_u, halo_u)
@@ -396,85 +439,100 @@ class _SurfaceSeeds:
     albedo_seed: int
 
 
-def _surface_seeds(spec: BodySpec, *, body_streams_seed: int, body_index: int) -> _SurfaceSeeds:
+def _surface_seeds(body: Body, *, body_streams_seed: int, body_index: int) -> _SurfaceSeeds:
     """The seeds of an ellipsoid's craters, relief terrain, and albedo noise.
 
     All three derive from the body's identity seed
-    (:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed`).  The craters
-    take the identity seed itself; the relief and the albedo noise each take their
-    own named stream of it, so they are independent of the craters and of each
-    other, and stable when other randomized features are toggled.
+    (:func:`~spindoctor.sim.seeds.body_identity_seed`).  The craters take the identity
+    seed itself; the relief and the albedo noise each take their own named stream of
+    it, so they are independent of the craters and of each other, and stable when
+    other randomized features are toggled.
 
     Parameters:
-        spec: The body (its name and surface keys are read).
+        body: The body (its name and surface keys are read).
         body_streams_seed: The scene's seed for every body's random streams.
         body_index: The body's position in the scene's body list.
 
     Returns:
         The body's surface seeds.
     """
+    name = body.name_at(body_index)
+    relief_rms = value_or(body.limb_relief_rms, 0.0)
     # Two bodies with identical geometry draw independent crater patterns and
     # occupy distinct shape-cache entries.  A body without craters never consumes
     # the seed; None keeps identical smooth bodies sharing one cached shape.
     crater_seed: int | None = None
-    if spec.crater_fill > 0.0:
-        crater_seed = body_identity_seed(body_streams_seed, spec, body_index)
+    if value_or(body.crater_fill, 0.0) > 0.0:
+        crater_seed = body_identity_seed(body_streams_seed, name, body_index)
 
     relief_seed = 0
     albedo_seed = 0
-    if spec.limb_relief_rms > 0.0 or spec.albedo_texture is not None:
-        identity_seed = body_identity_seed(body_streams_seed, spec, body_index)
-        if spec.limb_relief_rms > 0.0:
+    if relief_rms > 0.0 or body.albedo_texture is not None:
+        identity_seed = body_identity_seed(body_streams_seed, name, body_index)
+        if relief_rms > 0.0:
             relief_seed = derive_effect_seed(identity_seed, 'relief')
-        if spec.albedo_texture is not None:
+        if body.albedo_texture is not None:
             albedo_seed = derive_effect_seed(identity_seed, 'albedo')
     return _SurfaceSeeds(crater_seed=crater_seed, relief_seed=relief_seed, albedo_seed=albedo_seed)
 
 
-def _ellipsoid_spec(spec: BodySpec, seeds: _SurfaceSeeds, *, oversample: int) -> EllipsoidBodySpec:
+def _ellipsoid_spec(
+    body: Body, seeds: _SurfaceSeeds, *, oversample: int, roll_deg: float
+) -> EllipsoidBodySpec:
     """The ellipsoid renderer's spec for one body: its angles in radians, its seeds set.
 
+    Each key the body leaves out takes its declared default here.
+
     Parameters:
-        spec: The body.
+        body: The body.
         seeds: The body's surface seeds.
         oversample: The render grid's oversampling factor.
+        roll_deg: The planted roll the body was turned by, in degrees.
 
     Returns:
         The ellipsoid spec, which is also the body's shape-cache key.
     """
+    semi_a_px, semi_b_px, semi_c_px = body.semi_axes_px()
+    surge = body.opposition_surge
     return EllipsoidBodySpec(
-        semi_a_px=spec.semi_a_px,
-        semi_b_px=spec.semi_b_px,
-        semi_c_px=spec.semi_c_px,
-        rotation_z=float(np.radians(spec.rotation_z)),
-        sub_observer_lat=float(np.radians(spec.sub_observer_lat_deg)),
-        illumination_angle=float(np.radians(spec.illumination_angle)),
-        phase_angle=float(np.radians(spec.phase_angle)),
-        crater_fill=spec.crater_fill,
-        crater_min_radius=spec.crater_min_radius,
-        crater_max_radius=spec.crater_max_radius,
-        crater_power_law_exponent=spec.crater_power_law_exponent,
-        crater_relief_scale=spec.crater_relief_scale,
-        anti_aliasing=spec.anti_aliasing,
+        semi_a_px=semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
+        rotation_z=float(np.radians(value_or(body.rotation_z, 0.0))),
+        sub_observer_lat=float(np.radians(value_or(body.sub_observer_lat_deg, 0.0))),
+        illumination_angle=float(np.radians(value_or(body.illumination_angle, 0.0))),
+        phase_angle=float(np.radians(value_or(body.phase_angle, 0.0))),
+        crater_fill=value_or(body.crater_fill, 0.0),
+        crater_min_radius=value_or(body.crater_min_radius, DEFAULT_CRATER_MIN_RADIUS),
+        crater_max_radius=value_or(body.crater_max_radius, DEFAULT_CRATER_MAX_RADIUS),
+        crater_power_law_exponent=value_or(
+            body.crater_power_law_exponent, DEFAULT_CRATER_POWER_LAW_EXPONENT
+        ),
+        crater_relief_scale=value_or(body.crater_relief_scale, DEFAULT_CRATER_RELIEF_SCALE),
+        anti_aliasing=value_or(body.anti_aliasing, DEFAULT_ANTI_ALIASING),
         crater_seed=seeds.crater_seed,
-        crater_turn=float(np.radians(spec.roll_deg)),
+        crater_turn=float(np.radians(roll_deg)),
         oversample=int(oversample),
-        limb_relief_rms=spec.limb_relief_rms,
-        limb_relief_corr_deg=spec.limb_relief_corr_deg,
+        limb_relief_rms=value_or(body.limb_relief_rms, 0.0),
+        limb_relief_corr_deg=value_or(body.limb_relief_corr_deg, DEFAULT_LIMB_RELIEF_CORR_DEG),
         relief_seed=seeds.relief_seed,
-        photometric_law=spec.photometric_law,
-        minnaert_k=spec.minnaert_k,
-        surge_amplitude=spec.surge_amplitude,
-        surge_width_deg=spec.surge_width_deg,
-        albedo_texture=albedo_spec_from_params(spec.albedo_texture, seed=seeds.albedo_seed),
-        disc_texture=spec.disc_texture,
-        transits=spec.transits or (),
+        photometric_law=value_or(body.photometric_law, DEFAULT_PHOTOMETRIC_LAW),
+        minnaert_k=value_or(body.minnaert_k, DEFAULT_MINNAERT_K),
+        surge_amplitude=0.0 if surge is None else value_or(surge.amplitude, 0.0),
+        surge_width_deg=(
+            DEFAULT_SURGE_WIDTH_DEG
+            if surge is None
+            else value_or(surge.width_deg, DEFAULT_SURGE_WIDTH_DEG)
+        ),
+        albedo_texture=albedo_spec_from_block(body.albedo_texture, seed=seeds.albedo_seed),
+        disc_texture=disc_texture_spec_from_block(body.disc_texture),
+        transits=transit_specs_from_block(body.transits),
     )
 
 
 def _apply_body_atmosphere(
     ellipsoid_render: EllipsoidBodyRender,
-    spec: BodySpec,
+    body: Body,
     atmosphere_spec: AtmosphereSpec | None,
     *,
     center: tuple[float, float],
@@ -489,7 +547,7 @@ def _apply_body_atmosphere(
 
     Parameters:
         ellipsoid_render: The body drawn at the reference center on its canvas.
-        spec: The body (its geometry is read).
+        body: The body (its geometry is read).
         atmosphere_spec: The body's haze spec on the render grid, or None for a body
             without an atmosphere.
         center: The reference center (v, u) on the canvas, where the body was drawn.
@@ -500,6 +558,7 @@ def _apply_body_atmosphere(
     """
     if atmosphere_spec is None:
         return ellipsoid_render.intensity, None
+    semi_a_px, semi_b_px, semi_c_px = body.semi_axes_px()
     # apply_atmosphere returns fresh arrays, so the shared render cache the
     # drawing may come from is never mutated.
     layers = apply_atmosphere(
@@ -507,19 +566,19 @@ def _apply_body_atmosphere(
         atmosphere_spec,
         center_v=center[0],
         center_u=center[1],
-        semi_a=spec.semi_a_px,
-        semi_b=spec.semi_b_px,
-        semi_c=spec.semi_c_px,
-        rotation_z=float(np.radians(spec.rotation_z)),
-        sub_observer_lat=float(np.radians(spec.sub_observer_lat_deg)),
-        illumination_angle=float(np.radians(spec.illumination_angle)),
-        phase_angle=float(np.radians(spec.phase_angle)),
+        semi_a=semi_a_px,
+        semi_b=semi_b_px,
+        semi_c=semi_c_px,
+        rotation_z=float(np.radians(value_or(body.rotation_z, 0.0))),
+        sub_observer_lat=float(np.radians(value_or(body.sub_observer_lat_deg, 0.0))),
+        illumination_angle=float(np.radians(value_or(body.illumination_angle, 0.0))),
+        phase_angle=float(np.radians(value_or(body.phase_angle, 0.0))),
         silhouette=ellipsoid_render.silhouette,
     )
     return layers.disc, layers.halo
 
 
-def _projected_half_extents(spec: BodySpec) -> tuple[float, float]:
+def _projected_half_extents(body: Body) -> tuple[float, float]:
     """The half-extents of an ellipsoid's silhouette along the image axes.
 
     The silhouette is the outline the shared projection draws, foreshortened along
@@ -527,15 +586,16 @@ def _projected_half_extents(spec: BodySpec) -> tuple[float, float]:
     (see :func:`~spindoctor.sim.shared.ellipsoid.outline_half_extents`).
 
     Parameters:
-        spec: The body.
+        body: The body.
 
     Returns:
         The half-extents along v and u, in render-grid pixels.
     """
+    semi_a_px, semi_b_px, semi_c_px = body.semi_axes_px()
     return outline_half_extents(
-        spec.semi_a_px,
-        semi_b_px=spec.semi_b_px,
-        semi_c_px=spec.semi_c_px,
-        rotation_z=float(np.radians(spec.rotation_z)),
-        sub_observer_lat=float(np.radians(spec.sub_observer_lat_deg)),
+        semi_a_px,
+        semi_b_px=semi_b_px,
+        semi_c_px=semi_c_px,
+        rotation_z=float(np.radians(value_or(body.rotation_z, 0.0))),
+        sub_observer_lat=float(np.radians(value_or(body.sub_observer_lat_deg, 0.0))),
     )

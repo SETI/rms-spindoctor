@@ -8,22 +8,27 @@ and that the generated reference lists every typed key under its block.
 """
 
 import dataclasses
+import re
 import types
 from typing import Any, Union, get_args, get_origin, get_type_hints
 
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene
+from tests.spindoctor.sim.scenes import body_scene, frame_scene, star_entry
 
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 from spindoctor.sim.instruments.schema_detector import Detector, VidiconChain
 from spindoctor.sim.scene import boundary
 from spindoctor.sim.scene.declare import DECLARATION, declaration_of, optional
 from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.idealized import IdealizedBody
 from spindoctor.sim.scene.reference import scene_reference
-from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene
+from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene, Star
+from spindoctor.sim.scene.truth_atmosphere import HAZE_STRUCTURE_KEYS
+from spindoctor.sim.scene.truth_body import Body
 from spindoctor.sim.scene.truth_detector import DetectorOverride, Noise, NoiseVidicon
 from spindoctor.sim.scene.validate import (
     clear_validation_cache,
+    parse_body,
     parse_scene,
     validate_scene,
     validate_sim_params,
@@ -402,3 +407,95 @@ def test_a_gain_state_the_selected_mode_lacks_is_refused(
     clear_validation_cache()
     with pytest.raises(SimSceneValidationError, match=r'available states: \[4, 5\]'):
         validate_sim_params(scene)
+
+
+@pytest.mark.parametrize(
+    ('key', 'value', 'expected'),
+    [
+        ('semi_a_px', -3.0, 'a positive number'),
+        ('semi_c_px', 0.0, 'a positive number'),
+        ('range_km', 0.0, 'a positive number'),
+        ('km_per_pixel', 0.0, 'a positive number'),
+        ('mesh_lumpiness', -0.1, 'a non-negative number'),
+        ('mesh_n_lat', 0, 'an integer of at least 2'),
+        ('mesh_n_lon', 2, 'an integer of at least 3'),
+        ('mesh_seed', -1, 'a non-negative integer'),
+        ('crater_fill', -0.1, 'a non-negative number'),
+        ('anti_aliasing', 1.5, 'a number in [0, 1]'),
+    ],
+)
+def test_a_body_key_outside_its_range_is_refused(key: str, value: float, expected: str) -> None:
+    """A body key outside its range is refused with a message that states the range."""
+    scene = body_scene(body={key: value})
+    message = f'probe: bodies[0].{key}: expected {expected}, got {value!r}'
+    with pytest.raises(SimSceneValidationError, match=re.escape(message)):
+        parse_scene(scene, source='probe')
+
+
+def test_a_star_window_of_no_pixels_is_refused() -> None:
+    """A star's PSF fitting window is at least one pixel along each axis."""
+    scene = frame_scene(stars=[star_entry(5.0, 5.0, 6.0, psf_size=[0, 11])])
+    with pytest.raises(
+        SimSceneValidationError,
+        match=re.escape('stars[0].psf_size[0]: expected a positive integer, got 0'),
+    ):
+        parse_scene(scene, source='probe')
+
+
+def test_an_integer_too_large_for_a_float_is_refused() -> None:
+    """A 400-digit integer where a number belongs is refused, not raised as an overflow."""
+    scene = body_scene(body={'semi_a_px': 10**400})
+    with pytest.raises(SimSceneValidationError, match=r'bodies\[0\]\.semi_a_px: expected a number'):
+        parse_scene(scene, source='probe')
+
+
+def test_a_body_without_its_size_is_refused() -> None:
+    """A body entry that leaves semi-axis b out is refused, naming the key."""
+    scene = body_scene()
+    del scene['bodies'][0]['semi_b_px']
+    with pytest.raises(
+        SimSceneValidationError, match=re.escape('bodies[0].semi_b_px: a body sets semi_a_px')
+    ):
+        parse_scene(scene, source='probe')
+
+
+def test_an_unnamed_body_takes_the_name_its_position_gives() -> None:
+    """A body that leaves its name out is named by its position in the list."""
+    assert IdealizedBody().name_at(2) == 'SIM-BODY-3'
+
+
+def test_semi_axis_c_defaults_to_the_smaller_of_a_and_b() -> None:
+    """A body that leaves semi-axis c out takes the smaller of semi-axes a and b."""
+    assert IdealizedBody(semi_a_px=20.0, semi_b_px=15.0).semi_axes_px() == (20.0, 15.0, 15.0)
+
+
+def test_parse_body_returns_the_typed_body() -> None:
+    """One body entry parses to the typed body that holds its values."""
+    body = parse_body({'semi_a_px': 20.0, 'semi_b_px': 15.0, 'crater_fill': 0.3})
+    assert body == Body(semi_a_px=20.0, semi_b_px=15.0, crater_fill=0.3)
+
+
+def test_parse_body_refuses_an_unknown_key() -> None:
+    """A body entry with a key no body takes is refused with the scene's error."""
+    with pytest.raises(SimSceneValidationError, match=r"probe: unknown keys: \['radius'\]"):
+        parse_body({'semi_a_px': 20.0, 'semi_b_px': 15.0, 'radius': 4.0}, source='probe')
+
+
+def test_parse_scene_types_the_bodies_and_stars() -> None:
+    """The typed scene holds each body and star as its typed entry."""
+    scene = parse_scene(body_scene(stars=[star_entry(5.0, 5.0, 6.0)]), source='probe')
+    assert scene.bodies is not None
+    assert scene.stars is not None
+    assert (type(scene.bodies[0]), type(scene.stars[0])) == (Body, Star)
+
+
+def test_the_haze_structure_keys_are_the_keys_the_column_lacks() -> None:
+    """The structure keys are the atmosphere keys beyond the haze column's."""
+    assert {
+        'interior_ramp_amplitude',
+        'ns_asymmetry_amplitude',
+        'ns_falloff_ratio',
+        'axis_tilt_deg',
+        'sector_sharpness_gradient',
+        'cloud_blobs',
+    } == HAZE_STRUCTURE_KEYS

@@ -90,7 +90,9 @@ def test_spk_error_requires_range_km_on_bodies() -> None:
     """A body-bearing scene with SPK error must give each body a range_km."""
     scene = frame_scene(
         size=32,
-        bodies=[{'name': 'B', 'center_v': 16.0, 'center_u': 16.0, 'semi_a_px': 4.0}],
+        bodies=[
+            {'name': 'B', 'center_v': 16.0, 'center_u': 16.0, 'semi_a_px': 4.0, 'semi_b_px': 4.0}
+        ],
         spk_error={'dv_px': 1.0, 'du_px': 0.0, 'reference_range_km': 1000.0},
     )
     with pytest.raises(SimSceneValidationError, match='range_km'):

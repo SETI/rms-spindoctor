@@ -6,7 +6,7 @@ Each body's drawing is cached at the reference center until the cache is cleared
 import numpy as np
 
 from spindoctor.sim.render.bodies import render as body_render
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
+from spindoctor.sim.scene.validate import parse_body
 
 
 def _render_body() -> None:
@@ -15,7 +15,7 @@ def _render_body() -> None:
     img = np.zeros((64, 96))
     body_render.render_single_body(
         img,
-        body_spec_from_params(params, index=3),
+        parse_body(params),
         0.0,
         shift_u=0.0,
         body_streams_seed=7,

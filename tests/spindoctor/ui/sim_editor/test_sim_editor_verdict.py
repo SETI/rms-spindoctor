@@ -326,8 +326,7 @@ def test_a_scene_without_an_offset_starts_no_verdict_render(
 
 
 _ZERO_K_REFUSAL = (
-    'scene would be refused: sim_params: bodies[0].minnaert_k must be a positive number '
-    'when present'
+    'scene would be refused: sim_params: bodies[0].minnaert_k: expected a positive number, got 0.0'
 )
 
 
