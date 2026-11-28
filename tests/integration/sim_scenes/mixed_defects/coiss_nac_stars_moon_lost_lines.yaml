@@ -12,7 +12,10 @@ exposure_sec: 3.8
 # (Iapetus 252 px across at 81 deg phase, eight stars of V 7.29 to 11.68).  The
 # star magnitudes are that frame's; their positions were drawn at random off the
 # disc.  The scene runs the real frame's 3.8 s through its CL1+UV3, which puts
-# the disc's 99th percentile at 1,360 DN against the real frame's 1,445 DN.
+# the disc's 99th percentile at 1,360 DN at the camera's standard gain state,
+# 30 e-/DN.  The real frame, read at 12 e-/DN, shows 1,445 DN there, so the
+# scene's disc holds about 2.4 times its charge: the moon takes the simulator's
+# default albedo, where Iapetus's varies by a factor of ten across its surface.
 # Through UV3 the simulator dims each star by the filter's throughput for
 # sunlight, 74 times (4.7 mag), so the V 7.29 star peaks about 70 DN above the sky,
 # the V 9.11 star about 10 DN, and the fainter six 5 DN or less.

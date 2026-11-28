@@ -1212,9 +1212,11 @@ real frames of this camera carry together:
   lost four of its six groups in one cluster, and four of the groups cross the
   disc, as the real groups crossed the planet. The truncated lines hold dark sky,
   as they do on the real truncated frame. The scene runs the real frame's 3.8 s
-  through its CL1+UV3, where the simulator draws the disc within 6% of the real
-  frame's brightness and dims the stars 74 times, so only the brightest two stand
-  well above the noise. The fused answer lands 0.025 to 0.29 px off over 24 draws, at
+  through its CL1+UV3, where the simulator dims the stars 74 times, so only the
+  brightest two stand well above the noise. It keeps the camera's standard gain
+  state, where the real frame was read at 12 e-/DN, and its moon takes the
+  simulator's default albedo, so its disc holds about 2.4 times the real frame's
+  charge. The fused answer lands 0.025 to 0.29 px off over 24 draws, at
   high confidence on 14 of them and medium on 10, and follows the star refinement.
   On the committed seed the disc correlation, which treats the lost lines as zeros,
   lands 0.10 px off, and the fused answer 0.13 px. The hot pixels and cosmic rays

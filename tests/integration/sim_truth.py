@@ -255,21 +255,21 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('vgiss_2_nac_star_field', FUSED): _t(0.177, 0.259, 0.233, 0.06),
     ('vgiss_2_wac_star_field', FUSED): _t(1.310, 1.361, 0.356, 0.28),
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
-    # stars put it, and the fused answer lies between the two, 0.17 to 0.18 px from the
-    # truth toward the body; the tolerance stays well below the body's own 1.81 px
-    # error.  In crescent_stars the fused answer follows the stars, a little off the
+    # stars put it, and the fused answer lies between the two, 0.10 to 0.13 px from the
+    # truth toward the body; the tolerance stays well below the body techniques' own
+    # 2.3 to 2.6 px error.  In crescent_stars the fused answer follows the stars, a little off the
     # disc's 0.01 px.  moon_over_ring_sheet is expected to conflict (#755).
     # saturn_rings_wac follows its ring edges.
     ('crescent_stars', FUSED): _t(0.033, 0.037, 0.022, 0.05),
     ('saturn_rings_wac', FUSED): _t(0.101, 0.101, 0.070, 0.05),
-    ('stars_body_ephemeris_error', FUSED): _t(0.172, 0.175, 0.007, 0.05),
+    ('stars_body_ephemeris_error', FUSED): _t(0.106, 0.131, 0.030, 0.05),
     # mixed_content, one technique read from the fused run.  StarRefineNav starts from
     # the body's pass-1 answer, which carries the planted 1.81 px error, and still lands
-    # within 0.04 px of the truth, with the same answer on every draw as with the planted
-    # error removed.  This row holds the star side of the scene: a refinement that
+    # within 0.05 px of the truth, with the same answer on the committed draw as with the
+    # planted error removed.  This row holds the star side of the scene: a refinement that
     # followed its start would land near 1.8 px off and fail here, while the fused
     # tolerance alone would pass one that followed it part way.
-    ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.027, 0.030, 0.006, 0.05),
+    ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.025, 0.050, 0.030, 0.05),
     # mixed_defects.  The seed also places the lost lines and blocks, so the 16 seeds
     # cover 16 placements of the damage; every noise_seed draw also lies inside each
     # tolerance.  coiss_nac_lossy_moon seeds nothing but the noise, so its noise_seed
@@ -372,11 +372,12 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('moon_over_ring_sheet', 'RingEdgeNav'): _b(8.432, 9.252, 0.1641, 8.267, 9.417),
     # These two are wrong by design.  The scene plants a spacecraft-ephemeris error
     # (spk_error) that moves the body 1.81 px from where the pointing puts it, and the
-    # body techniques answer the pointing plus that error.  The bands hold the planted
-    # error, so the scene fails if it stops reaching the body techniques: without it
-    # they land 0.03 px and 0.09 to 0.10 px off.
-    ('stars_body_ephemeris_error', 'BodyDiscCorrelateNav'): _b(1.811, 1.811, 0.05, 1.761, 1.862),
-    ('stars_body_ephemeris_error', 'BodyLimbNav'): _b(1.831, 1.836, 0.05, 1.781, 1.887),
+    # body techniques answer the pointing plus that error.  Through the real frame's
+    # P60+GRN the disc saturates, which adds its own error: without the planted error
+    # both land 1.98 px off on the committed draw, outside these bands, so the scene
+    # still fails if the planted error stops reaching the body techniques.
+    ('stars_body_ephemeris_error', 'BodyDiscCorrelateNav'): _b(2.544, 2.552, 0.05, 2.494, 2.603),
+    ('stars_body_ephemeris_error', 'BodyLimbNav'): _b(2.347, 2.351, 0.05, 2.297, 2.402),
     # The roll is fitted about the extended field of view's corner, so the star
     # techniques' translations carry about 5 px of error (#434).
     ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.029, 5.087, 0.05, 4.979, 5.137),
