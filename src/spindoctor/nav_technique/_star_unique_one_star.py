@@ -13,7 +13,8 @@ the offset, and the other catalog stars judge every hypothesis:
   for a lone star, since nothing cross-checks it;
 - a hypothesis is refuted when other stars that the offset puts on clear sky in the
   image, and that should show at least a ``1 / peak_factor`` share of their expected
-  light, show nothing there (:func:`absent_stars`);
+  light, show nothing there (:func:`absent_stars`); a star the offset puts on or beside
+  missing pixels is not judged;
 - of the hypotheses left, the one brightest for its star's predicted SNR is chosen, as
   the pair search chooses among pairs;
 - the choice is ambiguous when another source of the same star's window is nearly as
@@ -41,7 +42,7 @@ from spindoctor.nav_technique._star_unique_two_star import (
     photometry_saturated,
     source_peak,
 )
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'LoneStarChoice',
@@ -99,17 +100,18 @@ def lone_star_hypotheses(
     peak_factor: float,
     absent_stars_needed: int,
     box_half_px: int,
+    missing_mask_ext: NDArrayBoolType,
     max_peak_per_snr: float | None = None,
 ) -> list[LoneStarHypothesis]:
     """Return every (searched star, source) pairing with the other stars' verdict on it.
 
     A pairing's offset is refuted when at least ``absent_stars_needed`` other usable stars
-    are absent where it puts them (:func:`absent_stars`): inside the image, on clear sky,
-    and below ``1 / peak_factor`` of the peak the source's brightness per unit of
-    predicted SNR says they should show.  Every other usable star is judged, however
-    faint; a star too faint to stand above the noise at that scale cannot fall short of
-    it.  A pairing whose star cannot say how bright it should be sets no scale, so
-    nothing refutes it.
+    are absent where it puts them (:func:`absent_stars`): inside the image, clear of
+    missing pixels, on clear sky, and below ``1 / peak_factor`` of the peak the source's
+    brightness per unit of predicted SNR says they should show.  Every other usable star
+    is judged, however faint; a star too faint to stand above the noise at that scale
+    cannot fall short of it.  A pairing whose star cannot say how bright it should be
+    does not set a scale, so nothing refutes it.
 
     A source is star-like when ``is_star_like`` says so and, given ``max_peak_per_snr``,
     its peak per unit of the star's predicted SNR does not exceed it.  The bound is the
@@ -126,6 +128,7 @@ def lone_star_hypotheses(
         peak_factor: Factor below the expected peak at which a star is absent.
         absent_stars_needed: Absent stars that refute an offset.
         box_half_px: Half-width of the box :func:`source_peak` searches.
+        missing_mask_ext: ``True`` where a pixel of the extended field of view is missing.
         max_peak_per_snr: Largest peak per unit of predicted SNR, in the image's units,
             of a source that could be the star, or ``None`` for no bound.
 
@@ -151,6 +154,7 @@ def lone_star_hypotheses(
                 margin_vu=margin_vu,
                 noise_sigma=noise_sigma,
                 box_half_px=box_half_px,
+                missing_mask_ext=missing_mask_ext,
             )
             refutation = (
                 f'{absent} other star(s) show nothing where the offset puts them on clear sky'
