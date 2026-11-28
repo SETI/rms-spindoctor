@@ -640,12 +640,19 @@ def encircled_energy_radii(
 #: The render grid's oversampling, which the simulator uses for every scene with a PSF.
 KERNEL_OVERSAMPLE = 4
 
-#: A pixel this many noise sigmas off a star's model is left out of a kernel fit ...
+#: A pixel is left out of a kernel fit when its residual from the star's model lies this
+#: many noise sigmas from the median residual of the pixels at its distance from the
+#: star (see ``_without_outliers``) ...
 OUTLIER_SIGMA = 5.0
 
-#: ... when it lies at least this far (pixels) from the star's center, so a hit or a hot
+#: ... and it lies at least this far (pixels) from the star's center, so a hit or a hot
 #: pixel goes and the star's own core stays.
 OUTLIER_MIN_RADIUS_PX = 2.5
+
+#: The width (pixels) of each ring of pixels whose median residual a pixel is compared
+#: with.  A wing the kernel misfits leaves about the same residual all around a ring, so
+#: the comparison keeps it, while a hit or a neighbor's light stands out of its ring.
+OUTLIER_RING_PX = 1.0
 
 #: The variance of rounding to whole DN, the least sky variance a kernel fit assumes.
 QUANTIZATION_VARIANCE_DN2 = 1.0 / 12.0
@@ -713,6 +720,8 @@ class KernelFit:
         w_err: One-sigma formal uncertainty of the wing fraction.
         reduced_chi2: The residuals' sum of squares over the degrees of freedom.
         stars: Each star's fit with the fitted kernel, in the order of the cutouts.
+        outlier_pixels: How many pixels, over all the stars, the second fit leaves out
+            as hits, hot pixels, or a neighbor's light.
     """
 
     kernel: dict[str, float]
@@ -720,6 +729,7 @@ class KernelFit:
     w_err: float
     reduced_chi2: float
     stars: list[KernelStarFit]
+    outlier_pixels: int
 
 
 #: The keys of a kernel, in the order the simulator's kernel function takes them.
@@ -848,11 +858,18 @@ def fit_kernel_star(
 def _without_outliers(
     cutout: StarCutout, kernel: dict[str, float], *, truncation_px: int, oversample: int
 ) -> StarCutout:
-    """Return the cutout with its hits and hot pixels marked invalid.
+    """Return the cutout with its hits, hot pixels, and neighbors' light marked invalid.
 
-    A pixel is an outlier when it lies :data:`OUTLIER_SIGMA` noise sigmas off the star's
-    model and at least :data:`OUTLIER_MIN_RADIUS_PX` from its center.  Each outlier's
-    neighbors that are as far from the center go with it, so a hit's skirt goes too.
+    A pixel is an outlier when it lies at least :data:`OUTLIER_MIN_RADIUS_PX` from the
+    star's center and its residual from the star's model lies :data:`OUTLIER_SIGMA`
+    noise sigmas from the residual of the star's profile at its distance.  That profile
+    residual is the median residual of each ring of valid pixels
+    :data:`OUTLIER_RING_PX` wide, interpolated between the rings' mean radii.  A wing
+    the kernel draws too faint or too bright raises or lowers a whole ring, so it stays.
+    The noise counts the shot noise of the model's light or the pixel's, whichever is
+    larger, so a wing brighter than the model is not judged against too small a noise.
+    Each outlier's neighbors that are as far from the center go with it, so a hit's
+    skirt goes too.
 
     Parameters:
         cutout: The star.
@@ -873,13 +890,20 @@ def _without_outliers(
         truncation_px=truncation_px,
         oversample=oversample,
     )
-    sigma = np.sqrt(
-        max(cutout.sky_var, QUANTIZATION_VARIANCE_DN2)
-        + np.clip(star, 0.0, None) / cutout.gain_e_per_dn
-    )
+    residual = cutout.image - star - fit.background
+    light = np.clip(np.maximum(star, star + residual), 0.0, None)
+    sigma = np.sqrt(max(cutout.sky_var, QUANTIZATION_VARIANCE_DN2) + light / cutout.gain_e_per_dn)
     gv, gu = np.mgrid[:size, :size]
-    far = np.hypot(gv - fit.center_v, gu - fit.center_u) >= OUTLIER_MIN_RADIUS_PX
-    off = np.abs(cutout.image - star - fit.background) > OUTLIER_SIGMA * sigma
+    radius = np.hypot(gv - fit.center_v, gu - fit.center_u)
+    ring = np.floor(radius / OUTLIER_RING_PX).astype(np.int64)
+    members = [cutout.valid & (ring == k) for k in np.unique(ring[cutout.valid])]
+    profile = np.interp(
+        radius,
+        [float(np.mean(radius[m])) for m in members],
+        [float(np.median(residual[m])) for m in members],
+    )
+    far = radius >= OUTLIER_MIN_RADIUS_PX
+    off = np.abs(residual - profile) > OUTLIER_SIGMA * sigma
     outliers = scipy.ndimage.binary_dilation(far & off) & far
     return replace(cutout, valid=cutout.valid & ~outliers)
 
@@ -902,7 +926,8 @@ def fit_psf_kernel(
     Every star keeps its own center, flux, and background, fitted anew for each trial
     kernel (:func:`fit_kernel_star`), and the core sigma and wing fraction minimize the
     sum of all the stars' squared, noise-weighted residuals.  The fit runs twice: the
-    first fit finds each star's hits and hot pixels, which the second leaves out.
+    first fit finds each star's hits, hot pixels, and neighbors' light, which the second
+    leaves out, and the result counts the pixels left out.
 
     Parameters:
         cutouts: The stars.
@@ -957,4 +982,7 @@ def fit_psf_kernel(
             fit_kernel_star(s, kernel, truncation_px=truncation_px, oversample=oversample)
             for s in cleaned
         ],
+        outlier_pixels=sum(
+            int(np.count_nonzero(s.valid & ~c.valid)) for s, c in zip(cutouts, cleaned, strict=True)
+        ),
     )
