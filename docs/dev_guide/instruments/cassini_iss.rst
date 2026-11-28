@@ -293,7 +293,7 @@ CL1+CL2 (256 narrow angle, 157 wide angle), one in three held out of the fit.
 
 - The rate and the color term are fitted together on the stars with a measured color:
   4.15e6 DN per second for a narrow angle star of V = 0 and B-V = 0 at 29 e/DN (+-0.01
-  mag, 5,847 stars) and 5.32e5 for a wide angle one (+-0.01 mag, 7,977 stars), times
+  mag, 5,840 stars) and 5.32e5 for a wide angle one (+-0.01 mag, 7,977 stars), times
   the calibration software's (CISSCAL's) 30.27 and 27.68 electrons per DN at that state.
   The color terms are -0.61 +- 0.01 and -0.48 +- 0.01: a redder star reads brighter than
   its V. With them the stars scatter by 0.34 and 0.19 mag about the fit, and their
@@ -302,8 +302,8 @@ CL1+CL2 (256 narrow angle, 157 wide angle), one in three held out of the fit.
 - The electrons per DN are CISSCAL's value at 29 e/DN over its gain ratios. The stars
   measure the DN ratio of 12 e/DN to 29 e/DN as 2.238 (+-0.01 mag, 1,895 stars) on the
   narrow angle camera and 2.362 (+-0.01 mag, 3,128 stars) on the wide angle, where
-  CISSCAL gives 2.357 and 2.360, and of 95 e/DN on the narrow angle camera as 0.318
-  (+-0.03 mag, 125 stars), where CISSCAL gives 0.310; the measured ratios are used. The
+  CISSCAL gives 2.357 and 2.360, and of 95 e/DN on the narrow angle camera as 0.325
+  (+-0.04 mag, 118 stars), where CISSCAL gives 0.310; the measured ratios are used. The
   other states take CISSCAL's ratios.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean,
   unsmeared stars of one readout mode and gain state on frames exposed 46 s or less,

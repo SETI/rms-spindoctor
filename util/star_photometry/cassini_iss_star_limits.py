@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import dataclasses
 import math
 import os
 import re
@@ -57,7 +58,16 @@ from vicar import VicarImage
 
 from spindoctor.obs import ObsCassiniISS
 
-__all__ = ['PARAMS', 'cassini_frames', 'decode_raw', 'main', 'measure', 'read_lut']
+__all__ = [
+    'PARAMS',
+    'cassini_frames',
+    'decode_raw',
+    'main',
+    'measure',
+    'read_lut',
+    'saturation_dn',
+    'systrans_filter_offsets',
+]
 
 FloatArray = NDArray[np.float64]
 
@@ -83,8 +93,10 @@ REFERENCE_FILTER = 'CL1+CL2'
 #: Shortest exposure sampled (seconds).
 MIN_EXPOSURE_S = 0.1
 
-#: The raw DN at or above which a pixel is treated as saturated: the 12-bit ADC's 4095, less
-#: a margin for the onset of nonlinearity.
+#: The raw DN at or above which a pixel is treated as saturated when the frame's full well
+#: holds more: the 12-bit ADC's 4095, less a margin for the onset of nonlinearity.  A frame
+#: whose full well (the index's VALID_MAXIMUM, which depends on the camera, gain state, and
+#: readout mode) holds less saturates there instead (see :func:`saturation_dn`).
 SATURATION_DN = 4000.0
 
 #: The catalog's star budget for the deep query.
@@ -111,6 +123,7 @@ _COLUMNS = (
     'CALIBRATION_LAMP_STATE_FLAG',
     'RINGS_FLAG',
     'OBSERVATION_ID',
+    'VALID_MAXIMUM',
 )
 
 _COMMON: dict[str, Any] = {
@@ -322,6 +335,7 @@ def cassini_frames(holdings: Path, per_group: int, per_group_filter: int) -> lis
                     'conversion': row['DATA_CONVERSION_TYPE'],
                     'target': row['TARGET_NAME'],
                     'observation_id': row['OBSERVATION_ID'],
+                    'valid_maximum': [float(v) for v in row['VALID_MAXIMUM']],
                     'moons': bodies.get(image_id, [])[1:],
                 },
             )
@@ -487,6 +501,20 @@ def decode_raw(data: NDArray[Any], conversion: str, lut: FloatArray) -> FloatArr
     return decoded
 
 
+def saturation_dn(frame: FrameInput) -> float:
+    """Return the raw DN at or above which a pixel of a frame is treated as saturated.
+
+    Parameters:
+        frame: The frame, whose ``extra['valid_maximum']`` is the index's VALID_MAXIMUM: the
+            ADC's ceiling (4095, or 255 for an image kept to 8 bits) and the full well in DN,
+            the order the cumulative index gives them in.
+
+    Returns:
+        The lowest of the two and :data:`SATURATION_DN`.
+    """
+    return min(*(float(v) for v in frame.extra['valid_maximum']), SATURATION_DN)
+
+
 def measure(frame: FrameInput) -> dict[str, Any]:
     """Measure one Cassini ISS frame (the pool worker).
 
@@ -509,9 +537,10 @@ def measure(frame: FrameInput) -> dict[str, Any]:
         raise ValueError(
             f'raw image shape {phot.shape} differs from the calibrated {obs.data.shape}'
         )
-    record = measure_frame(
-        obs, frame, PARAMS[(frame.camera, frame.mode)], config=config, phot_image=phot
+    params = dataclasses.replace(
+        PARAMS[(frame.camera, frame.mode)], saturation_dn=saturation_dn(frame)
     )
+    record = measure_frame(obs, frame, params, config=config, phot_image=phot)
     record['obs_texp'] = float(obs.texp)
     record['obs_detector'] = str(obs.detector)
     return record

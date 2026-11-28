@@ -87,11 +87,11 @@ cassini_iss:
     # measured at the pointing found on the calibrated image.
     #
     # Rate: 4.15e6 DN/s for V = 0 and B - V = 0 through CL1+CL2 at 29 e/DN (+-0.01 mag,
-    # 5,847 stars with a measured color), times CISSCAL's 30.27 e-/DN at that state; a star
+    # 5,840 stars with a measured color), times CISSCAL's 30.27 e-/DN at that state; a star
     # of the default class (G0, B - V 0.59) gives 1.75e8 e-/s.
     # Gain: CISSCAL's 30.27 e-/DN at 29 e/DN over its gain ratios (cassimg__dntoelectrons
     # on COISS_0011).  12 and 95 are measured from the stars: DN ratios against 29 of
-    # 2.238 (+-0.01 mag, 1,895 stars) and 0.318 (+-0.03 mag, 125 stars), where CISSCAL
+    # 2.238 (+-0.01 mag, 1,895 stars) and 0.325 (+-0.04 mag, 118 stars), where CISSCAL
     # gives 2.357 and 0.310.  215 has no stars.
     # Detection limit: the DN at 80% of the way from the detection floor to the plateau
     # of a detection-probability curve fitted to the clean, unsmeared stars of each readout
@@ -128,23 +128,23 @@ cassini_iss:
       gain:
         '12': 13.53  # measured
         '29': 30.27
-        '95': 95.32  # measured
+        '95': 93.10  # measured
         '215': 223.58
       min_detectable_dn:
         FULL:
           '12': 77.0  # +- 23, 375 stars
           '29': 34.2  # +- 6, 2176 stars
-          '95': 10.9  # scaled from '29'
+          '95': 11.1  # scaled from '29'
           '215': 4.6  # scaled from '29'
         SUM2:
           '12': 153.0  # +- 34, 496 stars
           '29': 78.4  # +- 16, 1440 stars
-          '95': 8.2  # +- 1, 431 stars
-          '215': 3.5  # scaled from '95'
+          '95': 8.1  # +- 1, 431 stars
+          '215': 3.4  # scaled from '95'
         SUM4:
           '12': 170.0  # +- 22, 97 stars
           '29': 353.0  # +- 23, 76 stars
-          '95': 112.0  # scaled from '29'
+          '95': 114.7  # scaled from '29'
           '215': 47.8  # scaled from '29'
       search_depth_mag: 1.0
       color_term: -0.61
@@ -572,23 +572,23 @@ cassini_iss_calib:
       gain:
         '12': 13.53
         '29': 30.27
-        '95': 95.32
+        '95': 93.10
         '215': 223.58
       min_detectable_dn:
         FULL:
           '12': 77.0
           '29': 34.2
-          '95': 10.9
+          '95': 11.1
           '215': 4.6
         SUM2:
           '12': 153.0
           '29': 78.4
-          '95': 8.2
-          '215': 3.5
+          '95': 8.1
+          '215': 3.4
         SUM4:
           '12': 170.0
           '29': 353.0
-          '95': 112.0
+          '95': 114.7
           '215': 47.8
       search_depth_mag: 1.0
       color_term: -0.61
