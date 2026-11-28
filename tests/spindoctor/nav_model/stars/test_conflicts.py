@@ -6,8 +6,10 @@ from typing import Any, ClassVar, cast
 
 import numpy as np
 import pytest
+from tests.packaged_sections import NavConfigWith
 
 import spindoctor.nav_model.stars.conflicts as conflicts_module
+from spindoctor.config import Config
 from spindoctor.nav_model.stars.conflicts import _conflict_body_list, _ring_opaque_fraction
 
 
@@ -23,34 +25,16 @@ class _FakeObsNoPlanet:
     closest_planet: str | None = None
 
 
-class _FakeSaturnConfig:
-    """Stand-in for the project config exposing only ``satellites``."""
-
-    @staticmethod
-    def satellites(planet: str) -> list[str]:
-        """Return Saturn's satellites in canonical order."""
-        return ['MIMAS', 'TETHYS'] if planet == 'SATURN' else []
-
-
-class _FakeEmptyConfig:
-    """Stand-in for a config that knows about no satellites."""
-
-    @staticmethod
-    def satellites(planet: str) -> list[str]:
-        """Return an empty list for any planet."""
-        del planet
-        return []
-
-
-def test_conflict_body_list_includes_planet_and_satellites() -> None:
+def test_conflict_body_list_includes_planet_and_satellites(nav_config_with: NavConfigWith) -> None:
     """``_conflict_body_list`` returns the planet plus its satellites."""
-    out = _conflict_body_list(cast(Any, _FakeObsWithSaturn()), cast(Any, _FakeSaturnConfig()))
+    config = nav_config_with({'satellites': {'SATURN': ['MIMAS', 'TETHYS']}})
+    out = _conflict_body_list(cast(Any, _FakeObsWithSaturn()), config)
     assert out == ['SATURN', 'MIMAS', 'TETHYS']
 
 
 def test_conflict_body_list_returns_empty_when_no_closest_planet() -> None:
     """When ``obs.closest_planet`` is ``None`` the body list is empty."""
-    out = _conflict_body_list(cast(Any, _FakeObsNoPlanet()), cast(Any, _FakeEmptyConfig()))
+    out = _conflict_body_list(cast(Any, _FakeObsNoPlanet()), Config())
     assert out == []
 
 

@@ -1,21 +1,21 @@
-"""The typed sections of the navigator configuration.
+"""The navigator configuration as one typed object, and its sections.
 
-:class:`~spindoctor.config.config.Config` parses the merged configuration's typed
-sections into a :class:`TypedSections` each time it installs a configuration, through
-the schema core (:func:`spindoctor.schema.parse`).  A section here is a frozen
-dataclass, and each of its fields gives a key's type and range.  A key that has no
-default is required, and its value lives in the packaged YAML files only.
+:func:`~spindoctor.config.config.load_nav_config` parses the whole merged configuration
+into a :class:`NavConfig` through the schema core (:func:`spindoctor.schema.parse`).
+Each top-level section is a field of it.  A section here is a frozen dataclass, and each
+of its fields gives a key's type and range.  A key that has no default is required, and
+its value lives in the packaged YAML files only.
 
 The ``techniques`` section's fields come from the technique registry
 (:mod:`spindoctor.nav_technique.confidence_config`), and the ``pds4`` section's from the
 dataset registry (:func:`spindoctor.dataset.pds4_config_keys`), so the type to parse is
-:func:`typed_sections_type`, which adds them.  It also adds a field for each section
+:func:`nav_config_type`, which adds them.  It also adds a field for each section
 of the configuration that holds camera blocks
 (:func:`~spindoctor.config.sections_camera.camera_sections`).
 
 The module imports the types of the sections it holds, and those import the
 configuration package, so :mod:`spindoctor.config.config` imports this module only
-when it installs a configuration.
+when it loads a configuration.
 """
 
 import dataclasses
@@ -53,10 +53,10 @@ __all__ = [
     'MAX_UPSAMPLE_FACTOR',
     'EnvironmentSection',
     'GeneralSection',
+    'NavConfig',
     'OffsetSection',
     'OrchestratorSection',
-    'TypedSections',
-    'typed_sections_type',
+    'nav_config_type',
 ]
 
 MAX_UPSAMPLE_FACTOR = 1000
@@ -149,12 +149,13 @@ class OrchestratorSection:
 
 
 @dataclass(frozen=True)
-class TypedSections:
-    """The sections of the navigator configuration that are parsed into types.
+class NavConfig:
+    """The navigator configuration, parsed: one field for each top-level section.
 
-    Each field is one top-level section, named as the files write it.  So the key path
-    of a problem found while parsing starts at the section's name, as in
-    ``orchestrator.ensemble.min_confidence``.
+    Each field is named as the files write its section, so the key path of a problem
+    found while parsing starts at the section's name, as in
+    ``orchestrator.ensemble.min_confidence``.  The whole merged configuration is parsed
+    into it, so a top-level section that is not a field is refused as an unknown key.
 
     A mapping keyed by planet must name only planets of the ``planets`` section, as
     SPICE spells them, so a key in lower case or misspelled is refused rather than
@@ -162,7 +163,7 @@ class TypedSections:
     ``body_shape``, must spell each body in upper case, for the same reason.
 
     The ``techniques`` and ``pds4`` fields are declared here by their base types, which
-    have no fields, so this class is never parsed itself: :func:`typed_sections_type`
+    have no fields, so this class is never parsed itself: :func:`nav_config_type`
     returns the type to parse. That type is a subclass, so it inherits the key rules
     below.  It also has a field for each camera section, named as the files write it,
     and lists their names in :attr:`CAMERA_SECTIONS`; :meth:`camera_block` gives one
@@ -296,11 +297,11 @@ class TypedSections:
 
 
 @functools.cache
-def _typed_sections_type(
+def _nav_config_type(
     techniques: tuple[type[NavTechnique], ...],
     pds4_bundles: tuple[str, ...],
     cameras: tuple[tuple[str, bool], ...],
-) -> type[TypedSections]:
+) -> type[NavConfig]:
     """Return the type to parse for a set of shipped techniques, bundles, and cameras.
 
     The result is cached, so one set of techniques, bundles, and camera sections always
@@ -313,7 +314,7 @@ def _typed_sections_type(
             :func:`~spindoctor.config.sections_camera.camera_sections` gives them.
 
     Returns:
-        A subclass of :class:`TypedSections` whose ``techniques`` field has the section
+        A subclass of :class:`NavConfig` whose ``techniques`` field has the section
         type for ``techniques``, whose ``pds4`` field has the section type for
         ``pds4_bundles``, and which has a field for each camera section: a
         :class:`~spindoctor.config.sections_camera.CameraBlock`, or a mapping of camera
@@ -323,14 +324,14 @@ def _typed_sections_type(
         (name, dict[Str, CameraBlock] if holds_several else CameraBlock)
         for name, holds_several in cameras
     ]
-    sections_type: type[TypedSections] = dataclasses.make_dataclass(
-        'TypedSections',
+    sections_type: type[NavConfig] = dataclasses.make_dataclass(
+        'NavConfig',
         [
             ('techniques', techniques_section_type(techniques)),
             ('pds4', pds4_section_type(pds4_bundles)),
             *camera_fields,
         ],
-        bases=(TypedSections,),
+        bases=(NavConfig,),
         frozen=True,
         namespace={
             '__pydantic_config__': SCHEMA_CONFIG,
@@ -340,12 +341,12 @@ def _typed_sections_type(
     return sections_type
 
 
-def typed_sections_type(
+def nav_config_type(
     config: Mapping[str, Any], *, known_cameras: frozenset[str] = frozenset()
-) -> type[TypedSections]:
-    """Return the type the typed sections of a configuration are parsed into.
+) -> type[NavConfig]:
+    """Return the type a merged configuration is parsed into.
 
-    It is :class:`TypedSections` with the ``techniques`` field typed by the section
+    It is :class:`NavConfig` with the ``techniques`` field typed by the section
     type of the shipped techniques
     (:func:`~spindoctor.nav_technique.confidence_config.techniques_section_type`), the
     ``pds4`` field by the section type of the registered datasets' bundles
@@ -359,8 +360,8 @@ def typed_sections_type(
             over, which stay camera sections whatever the override puts in them.
 
     Returns:
-        A subclass of :class:`TypedSections`.
+        A subclass of :class:`NavConfig`.
     """
-    static = frozenset(item.name for item in dataclasses.fields(TypedSections))
+    static = frozenset(item.name for item in dataclasses.fields(NavConfig))
     cameras = camera_sections(config, typed=static, known=known_cameras)
-    return _typed_sections_type(shipped_techniques(), pds4_config_keys(), cameras)
+    return _nav_config_type(shipped_techniques(), pds4_config_keys(), cameras)

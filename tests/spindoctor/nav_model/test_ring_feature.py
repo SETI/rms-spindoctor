@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
-from tests.ring_sections import ring_feature
+from tests.packaged_sections import ring_feature
 
 from spindoctor.nav_model.rings.ring_render_context import RingsRenderContext
 from spindoctor.nav_model.rings.ring_types import RingFeatureType

@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from spindoctor.config import Config
+from spindoctor.schema import Layer
 
 
 @pytest.fixture(scope='session')
@@ -30,7 +31,7 @@ def pds3_holdings_dir() -> Path:
 
 
 @pytest.fixture(scope='session')
-def rotation_fitting_config(tmp_path_factory: pytest.TempPathFactory) -> Config:
+def rotation_fitting_config() -> Config:
     """Return the packaged configuration with Galileo SSI rotation fitting turned on.
 
     No packaged configuration fits a camera rotation, so a navigation that fits one
@@ -38,8 +39,7 @@ def rotation_fitting_config(tmp_path_factory: pytest.TempPathFactory) -> Config:
     ``extra_params``.  Every other setting is the packaged default, and the
     process-wide default configuration is left untouched.
     """
-    override = tmp_path_factory.mktemp('rotation_fitting') / 'override.yaml'
-    override.write_text('galileo_ssi:\n  fit_camera_rotation: true\n', encoding='utf-8')
-    config = Config()
-    config.update_config(override)
+    override = Layer({'galileo_ssi': {'fit_camera_rotation': True}}, 'the rotation override')
+    config = Config(overrides=[override])
+    config.read_config()
     return config

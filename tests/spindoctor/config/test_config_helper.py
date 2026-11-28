@@ -116,8 +116,7 @@ def _config_with_environment(environment: dict[str, str | None] | None) -> Confi
     """
 
     config = Config()
-    config._config_dict = {'environment': dict(environment or {})}
-    config._sections = dataclasses.replace(
+    config._nav_config = dataclasses.replace(
         packaged_sections(), environment=EnvironmentSection(**(environment or {}))
     )
     return config

@@ -26,7 +26,7 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
-from tests.product_sections import plane_entry
+from tests.packaged_sections import plane_entry
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.cli.pds4.targets import target_table

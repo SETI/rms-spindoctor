@@ -14,10 +14,10 @@ into typed Python objects. It has two halves:
   them in order into the one mapping the core checks. It applies the file family's
   rule for null, and it records which file set each value.
 
-The navigator's configuration uses both halves for its typed sections:
-:class:`~spindoctor.config.config.Config` merges its files under the ``REFUSE`` rule for
-null, parses each typed section into a dataclass, and then applies its own load-time
-checks to the whole merged configuration (see :ref:`config-typed-sections`). The simulator's instrument catalog uses both
+The navigator's configuration uses both halves:
+:func:`~spindoctor.config.config.load_nav_config` merges its files under the ``REFUSE``
+rule for null and parses the whole merged configuration into one dataclass (see
+:ref:`config-typed-sections`). The simulator's instrument catalog uses both
 halves: its files merge under the ``REMOVE`` rule for null, and each entry parses into a
 typed dataclass (see :ref:`sim-instrument-files`). So does each artifact mode's map, in
 a scene or in the catalog. The rest of a scene is checked by the simulator's own scene

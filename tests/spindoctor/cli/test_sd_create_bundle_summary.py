@@ -20,7 +20,7 @@ from typing import Any
 
 import pdstemplate
 import pytest
-from tests.product_sections import plane_entry
+from tests.packaged_sections import plane_entry
 from tests.spindoctor.cli.pds4.conftest import (
     RUN_LEVEL_PRODUCTS,
     make_bundle_env,
