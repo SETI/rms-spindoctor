@@ -15,7 +15,7 @@ the extended-feature techniques (disc, limb, ring) and the point-source techniqu
 
 Run with::
 
-    PYTHONPATH=. python -m tests.integration.technique_snr_characterization
+    PYTHONPATH=. python -m util.sim_reports.technique_snr_characterization
 
 The figures feed the simulator performance report.  A real image's true offset is
 unknown, so the whole characterization is simulated.
@@ -28,14 +28,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from tests.integration.checkout_guard import require_checkout_package
 
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene.io import load_sim_scene
-from tests.integration.checkout_guard import require_checkout_package
 
-_SCENES = Path(__file__).parent / 'sim_scenes'
+_SCENES = Path(__file__).parents[2] / 'tests' / 'integration' / 'sim_scenes'
 _FIGURES_ROOT = Path(__file__).parent.parent.parent / 'docs' / 'simulator_report' / '_figures'
 
 # For the SNR-vs-accuracy figures: a fixed, modest sub-pixel offset inside every

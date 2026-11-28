@@ -1,6 +1,6 @@
 """Render the documentation example images for the simulator chapters.
 
-Run as ``python -m tests.integration.sim_doc_images`` (no holdings or SPICE
+Run as ``python -m util.sim_reports.sim_doc_images`` (no holdings or SPICE
 needed -- everything is rendered in-process).  It writes two galleries of
 viewable PNGs:
 
@@ -27,15 +27,15 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from tests.integration.checkout_guard import require_checkout_package
 
 from spindoctor.sim.png_export import render_scene_png
 from spindoctor.sim.scene.io import load_sim_scene
 from spindoctor.sim.scene.validate import validate_sim_params
-from tests.integration.checkout_guard import require_checkout_package
 
 _DOCS = Path(__file__).parent.parent.parent / 'docs'
 _GUI_DIR = _DOCS / 'dev_guide' / '_sim_images'
-_SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
+_SCENES_ROOT = Path(__file__).parents[2] / 'tests' / 'integration' / 'sim_scenes'
 _REPORT_DIR = _DOCS / 'simulator_report' / '_scene_images'
 
 _COISS = 'coiss_nac'
@@ -617,12 +617,12 @@ _GUI_NOTES = """\
 
 These PNGs illustrate the simulator's scene ingredients for
 `dev_guide_simulator.rst`. They are rendered in-process by
-`tests/integration/sim_doc_images.py` from hand-built `sim_params` dicts (one
+`util/sim_reports/sim_doc_images.py` from hand-built `sim_params` dicts (one
 feature per image) and committed as Sphinx assets.
 
 Regenerate (and review the diff) after any change that alters rendering:
 
-    python -m tests.integration.sim_doc_images
+    python -m util.sim_reports.sim_doc_images
 
 Each image uses `spindoctor.sim.png_export.render_scene_png`, which stretches detector
 counts to visible grayscale with a percentile clip plus a per-image gamma (dim
@@ -636,12 +636,12 @@ _REPORT_NOTES = """\
 
 These PNGs are the actual catalog scenes the sensitivity report measures,
 rendered from their YAML so a reader sees the frame behind each result. They are
-produced in-process by `tests/integration/sim_doc_images.py` and committed as
+produced in-process by `util/sim_reports/sim_doc_images.py` and committed as
 Sphinx assets.
 
 Regenerate (and review the diff) after a scene's geometry changes:
 
-    python -m tests.integration.sim_doc_images
+    python -m util.sim_reports.sim_doc_images
 
 The mapping from PNG to scene file is `_REPORT_SCENES` in the generator. Each
 image is rendered with `spindoctor.sim.png_export.render_scene_png` (percentile stretch

@@ -2,7 +2,7 @@
 
 The gallery PNGs under ``docs/dev_guide/_sim_images/`` and
 ``docs/simulator_report/_scene_images/`` are committed Sphinx assets written
-by ``python -m tests.integration.sim_doc_images``; any change that alters
+by ``python -m util.sim_reports.sim_doc_images``; any change that alters
 rendered output must regenerate them in the same change.  This module
 enforces that rule mechanically: it regenerates every gallery image into a
 temporary directory and asserts each committed PNG is byte-identical to its
@@ -22,19 +22,18 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PIL import Image
-
-from tests.integration import sim_doc_images
+from util.sim_reports import sim_doc_images
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
-_DOCS = Path(__file__).parent.parent.parent / 'docs'
+_DOCS = Path(__file__).parents[3] / 'docs'
 # Committed gallery directory per gallery key; the keys index the freshly
 # regenerated directories the fixture returns.
 _COMMITTED_DIRS: dict[str, Path] = {
     'dev_guide': _DOCS / 'dev_guide' / '_sim_images',
     'report': _DOCS / 'simulator_report' / '_scene_images',
 }
-_REGEN_COMMAND = 'python -m tests.integration.sim_doc_images'
+_REGEN_COMMAND = 'python -m util.sim_reports.sim_doc_images'
 
 
 @pytest.fixture(scope='module')
@@ -107,5 +106,5 @@ def test_no_orphaned_committed_gallery_images(regenerated_dirs: dict[str, Path])
                 orphans.append(str(committed.relative_to(_DOCS.parent)))
     assert not orphans, (
         f'committed doc image(s) with no generator definition: {orphans}; '
-        f'delete them or restore their entries in tests/integration/sim_doc_images.py'
+        f'delete them or restore their entries in util/sim_reports/sim_doc_images.py'
     )

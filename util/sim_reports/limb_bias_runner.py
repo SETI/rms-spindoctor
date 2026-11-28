@@ -19,15 +19,18 @@ Runs three blocks and writes CSV tables plus a console summary:
 
 Run with::
 
-    PYTHONPATH=src python -m tests.integration.limb_bias_runner
+    PYTHONPATH=src python -m util.sim_reports.limb_bias_runner
 
 CSV outputs land under ``util/calibration/limb_bias/`` by default.
 """
 
 from __future__ import annotations
 
+import copy
 import csv
+import math
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -35,12 +38,14 @@ from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.limb_bias import (
     LimbBiasSample,
     build_body_scene,
-    measure_real_limb_vs_star,
     measure_sim_limb_bias,
     renderer_centroid_offset,
     ridge_inset_phase_zero,
-    sweep_scenes,
+    technique_offset,
 )
+
+from spindoctor.nav_model import build_models_for_obs
+from spindoctor.nav_orchestrator import NavOrchestrator
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _OUT_DIR = _REPO_ROOT / 'util' / 'calibration' / 'limb_bias'
@@ -53,6 +58,122 @@ _PROBE_DIAMETER_PX = 160.0
 _PROBE_PHASE_DEG = 30.0
 _PROBE_ILLUM_DEG = 25.0
 _PROBE_OFFSET = (0.3, 0.3)
+
+
+# Star technique names used as the independent real-frame ground truth,
+# most precise first.  The first one that produces a non-spurious result on a
+# frame is taken as that frame's star reference offset.
+_STAR_TECHNIQUES: tuple[str, ...] = (
+    'StarRefineNav',
+    'StarUniqueMatchNav',
+    'StarFieldFromCatalogNav',
+)
+
+
+@dataclass(frozen=True)
+class RealLimbStarSample:
+    """Limb-versus-star offset comparison on a single real frame.
+
+    Attributes:
+        image_id: Short image identifier.
+        limb_offset_vu: ``BodyLimbNav`` offset, or ``None``.
+        star_offset_vu: Independent star-technique offset, or ``None``.
+        star_technique: Name of the star technique that supplied the
+            reference, or ``None``.
+        gap_vu: Signed ``limb - star`` per axis, or ``None`` when either
+            offset is missing.
+    """
+
+    image_id: str
+    limb_offset_vu: tuple[float, float] | None
+    star_offset_vu: tuple[float, float] | None
+    star_technique: str | None
+    gap_vu: tuple[float, float] | None
+
+    @property
+    def gap_mag_px(self) -> float | None:
+        """Euclidean magnitude of the limb-minus-star gap, or ``None``."""
+        if self.gap_vu is None:
+            return None
+        return math.hypot(self.gap_vu[0], self.gap_vu[1])
+
+
+def measure_real_limb_vs_star(obs: Any, image_id: str) -> RealLimbStarSample:
+    """Compare the limb and star offsets on one navigated real observation.
+
+    Runs the full technique ensemble once and reads the ``BodyLimbNav``
+    offset and the most precise available star-technique offset from the same
+    navigation, so both are measured against the identical image geometry.
+
+    Parameters:
+        obs: A real :class:`ObsSnapshotInst` already built from an image.
+        image_id: Short identifier for reporting.
+
+    Returns:
+        A :class:`RealLimbStarSample` carrying both offsets and their signed
+        gap.
+    """
+    result = NavOrchestrator(
+        build_models_for_obs(obs), only_models='*', only_techniques='*'
+    ).navigate(obs)
+    limb = technique_offset(result, 'BodyLimbNav')
+    star: tuple[float, float] | None = None
+    star_name: str | None = None
+    for name in _STAR_TECHNIQUES:
+        star = technique_offset(result, name)
+        if star is not None:
+            star_name = name
+            break
+    gap: tuple[float, float] | None = None
+    if limb is not None and star is not None:
+        gap = (limb[0] - star[0], limb[1] - star[1])
+    return RealLimbStarSample(
+        image_id=image_id,
+        limb_offset_vu=limb,
+        star_offset_vu=star,
+        star_technique=star_name,
+        gap_vu=gap,
+    )
+
+
+def sweep_scenes(
+    axis: str,
+    values: list[float],
+    *,
+    base: dict[str, Any],
+) -> list[tuple[float, dict[str, Any]]]:
+    """Return ``(value, sim_params)`` pairs varying one axis of a base scene.
+
+    Parameters:
+        axis: One of ``'phase'``, ``'diameter'``, ``'illumination'``,
+            ``'offset_v'``, or ``'offset_u'``.
+        values: The values to sweep.
+        base: A base scene from :func:`build_body_scene`.
+
+    Returns:
+        One ``(value, sim_params)`` pair per value.
+
+    Raises:
+        ValueError: If ``axis`` is not a recognized sweep axis.
+    """
+    out: list[tuple[float, dict[str, Any]]] = []
+    for value in values:
+        scene = copy.deepcopy(base)
+        body = scene['bodies'][0]
+        if axis == 'phase':
+            body['phase_angle'] = value
+        elif axis == 'diameter':
+            body['semi_a_px'] = body['semi_b_px'] = body['semi_c_px'] = value / 2.0
+        elif axis == 'illumination':
+            body['illumination_angle'] = value
+        elif axis == 'offset_v':
+            scene['offset_v'] = value
+        elif axis == 'offset_u':
+            scene['offset_u'] = value
+        else:
+            raise ValueError(f'unknown sweep axis: {axis!r}')
+        out.append((value, scene))
+    return out
 
 
 def _base_scene() -> dict[str, Any]:

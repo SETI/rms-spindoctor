@@ -1,6 +1,6 @@
 """Run the sim parameter sweeps and emit per-step JSON (Phase T3).
 
-Invoked as ``python -m tests.integration.sim_sweep_runner`` from a clean
+Invoked as ``python -m util.sim_reports.sim_sweep_runner`` from a clean
 checkout.  For every spec under ``tests/integration/sim_sweeps/`` it navigates
 each sweep step and writes ``tests/integration/sim_sweeps/results/<name>.json``
 containing one row per value and seed: ``value``, ``seed``, ``status``,
@@ -25,7 +25,6 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from spindoctor.sim.png_export import render_scene_png
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sim_sweep import (
     build_sweep_params,
@@ -34,7 +33,9 @@ from tests.integration.sim_sweep import (
     run_sweep,
 )
 
-_SWEEPS_ROOT = Path(__file__).parent / 'sim_sweeps'
+from spindoctor.sim.png_export import render_scene_png
+
+_SWEEPS_ROOT = Path(__file__).parents[2] / 'tests' / 'integration' / 'sim_sweeps'
 _RESULTS_ROOT = _SWEEPS_ROOT / 'results'
 
 
@@ -121,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f'{spec.sweep_name}: {len(spec.values)} steps -> {techniques}')
     print(f'Wrote {len(sweep_paths)} sweep result(s) to {_RESULTS_ROOT}')
     try:
-        from tests.integration.sim_sweep_plots import generate_plots
+        from util.sim_reports.sim_sweep_plots import generate_plots
     except ImportError:
         print('matplotlib not available; skipping figures.', file=sys.stderr)
         return 0
