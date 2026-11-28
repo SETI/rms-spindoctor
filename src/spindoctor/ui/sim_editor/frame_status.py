@@ -47,7 +47,8 @@ class NavigatorFrameReading:
         image_class: The classifier's outcome: ``'blank'``, ``'fully_overexposed'``,
             ``'mostly_missing_data'``, or ``'clean'``.
         blank_max: The peak below which the frame is blank.
-        max_missing_frac: The marker share above which the frame is refused.
+        max_missing_frac: The marker share, outside the unread lines, above which the
+            frame is refused.
         max_overexposed_frac: The saturated share above which the frame is
             overexposed.
     """
@@ -86,7 +87,7 @@ def read_frame_as_navigator(
     missing = missing_data_mask(arr, marker)
     missing_frac = float(missing.mean()) if arr.size else 0.0
     filled = np.where(missing, 0.0, arr)
-    statistics = measure_image_quality(filled, thresholds, missing_frac=missing_frac)
+    statistics = measure_image_quality(filled, thresholds, missing_mask=missing)
     return NavigatorFrameReading(
         units=frame_units_name(inst_config),
         marker=marker,
@@ -134,8 +135,9 @@ def frame_units_summary(image: NDArrayFloatType, inst_config: CameraBlock) -> st
     the navigator's classifier
     (see :func:`read_frame_as_navigator`) would not call the frame clean, it adds
     the reason, in the classifier's order: below the blank limit, over the
-    overexposed share, or over ``max_missing_frac_clean``, in which case the
-    navigator refuses it as missing data.  Pass the frame the navigator reads, with
+    overexposed share, or over ``max_missing_frac_clean`` outside the unread lines,
+    in which case the navigator refuses it as missing data.  A line is unread when
+    every one of its pixels carries the marker.  Pass the frame the navigator reads, with
     the planted offset applied, for the verdict to match it.
 
     Parameters:

@@ -156,15 +156,17 @@ frame it stays above 0 on all but about 7 pixels in 100,000, as the real Voyager
 sky stays above 0. The editor's status bar shows the units and value range of each
 render.
 
-The status bar also warns when the navigator would refuse a render: when more than
-30% of its pixels are lost, or when the frame would read as blank, as an empty
-calibrated Cassini frame does. It reads the frame the navigator sees, with the scene's
-planted offset applied, so its verdict can differ from what the picture shows. When
-the scene plants an offset, the editor draws that frame in the background too, at the
-same time as the full render. Each preview sets the status bar to the units followed by
-"verdict pending", and the verdict fills in once the background renders finish. The
-preview redraws a moment after you stop changing a value. Until then, the status bar
-still describes the scene as it was before the change.
+The status bar also warns when the navigator would refuse a render: when more than 30%
+of its pixels are lost on the lines that were read out, or when the frame would read as
+blank, as an empty calibrated Cassini frame does. A line that lost every one of its
+pixels does not count toward the 30%. The status bar reads the frame the navigator
+sees, with the scene's planted offset applied, so its verdict can differ from what the
+picture shows. When the scene plants an offset, the editor draws that frame in the
+background too, at the same time as the full render. Each preview sets the status bar
+to the units followed by "verdict pending", and the verdict fills in once the
+background renders finish. The preview redraws a moment after you stop changing a
+value. Until then, the status bar still describes the scene as it was before the
+change.
 
 Before each redraw the editor checks the scene by the same rules it uses to load a
 scene file. An edit can leave the scene unfinished for a moment, such as when two

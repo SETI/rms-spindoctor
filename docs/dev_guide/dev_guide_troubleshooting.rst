@@ -99,9 +99,15 @@ it.
     Most pixels at full-well DN; see ``saturation_frac``.
 
 ``missing_data_dominant``
-    Too many missing-data pixels; see ``missing_frac``. A partial dropout
-    below the refusal cutoff instead sets the advisory ``partial_dropout``
-    flag and navigation proceeds.
+    Too many missing-data pixels on the lines that were read out; see
+    ``missing_frac`` and ``unread_line_frac``. The unread lines of a truncated
+    readout never count against ``max_missing_frac_clean``, so a frame that lost
+    whole lines goes on to the techniques, which judge whether the lines it read
+    out hold enough to navigate on. A frame the techniques cannot use is refused
+    later, for example with ``all_techniques_spurious`` or
+    ``no_features_extracted``. A frame that is navigated with more than
+    ``partial_dropout_min_frac`` of its pixels missing carries the advisory
+    ``partial_dropout`` flag.
 
 ``image_corrupt``
     The pixel data failed to parse after the file opened.

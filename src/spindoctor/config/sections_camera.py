@@ -139,7 +139,7 @@ NoisyThresholdDn = Positive
 BlankMaxIf = NonNeg
 #: The noise sigma above which an image is flagged noisy, in I/F.
 NoisyThresholdIf = Positive
-#: The largest share of missing pixels a clean image may have.
+#: The largest share of missing pixels, outside the unread lines, a clean image may have.
 MaxMissingFracClean = Unit
 #: The largest share of saturated pixels a clean image may have.
 MaxOverexposedFracClean = Unit
@@ -232,9 +232,13 @@ class QualityThresholds:
     the ``_dn`` keys, and a ``calibrated_if`` camera sets the ``_if`` keys and has no
     saturation limit (see :class:`CameraBlock`).
 
+    A line is unread when every one of its pixels is missing, as in a readout that
+    stopped early.  Unread lines never make an image unclean by themselves; only the
+    other missing pixels count against ``max_missing_frac_clean``.
+
     Parameters:
-        max_missing_frac_clean: The largest share of missing pixels a clean image may
-            have.
+        max_missing_frac_clean: The largest share of missing pixels, outside the unread
+            lines, that a clean image may have.
         max_overexposed_frac_clean: The largest share of saturated pixels a clean image
             may have.
         partial_dropout_min_frac: The share of missing pixels above which a clean image

@@ -156,8 +156,8 @@ class InstrumentConfigQuality:
     """The limits a scene changes in the navigator block's ``image_quality_thresholds``.
 
     Parameters:
-        max_missing_frac_clean: The largest share of missing pixels a clean image may
-            have.
+        max_missing_frac_clean: The largest share of missing pixels, outside the unread
+            lines, that a clean image may have.
         max_overexposed_frac_clean: The largest share of saturated pixels a clean image
             may have.
         partial_dropout_min_frac: The share of missing pixels above which a clean image
@@ -175,7 +175,8 @@ class InstrumentConfigQuality:
 
     max_missing_frac_clean: MaxMissingFracClean | None = optional(
         'idealized',
-        'The largest share of missing pixels a clean image may have.',
+        'The largest share of missing pixels, outside the unread lines, that a clean image '
+        'may have.',
         when_absent=_BLOCK_VALUE,
     )
     max_overexposed_frac_clean: MaxOverexposedFracClean | None = optional(

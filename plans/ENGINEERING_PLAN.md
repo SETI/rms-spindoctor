@@ -816,6 +816,24 @@ where they differ).
 - **#1275** — `StarFieldFromCatalogNav`'s wide-offset fallback takes its
   anchors from the brightest catalog stars, which on a truncated readout can
   all fall in the unread lines (N1849746145); found by #1245.
+- **#1249** (this PR's work: `rf_nav_1249_truncated_readouts`) — the image
+  classifier refused every frame with more than 30% of its pixels missing,
+  so a truncated readout was refused however much the lines it read out
+  held. The lines on which every pixel is missing now never refuse a frame
+  by themselves (operator 2026-11-28: the techniques judge whether the lines
+  read out hold a star pattern, a body, or a ring); only the other missing
+  pixels count against `max_missing_frac_clean`.
+- **#1279** — the classifier's background gradient score, the ring annulus
+  correlation, the body model's detection SNR, the Titan haze fit, and the
+  star field's source detection still read the filled unread lines as data;
+  found by #1249.
+- **#1280** (done: closed, because #1249 removed the read-out limit it was
+  to measure, operator 2026-11-28) — Galileo SSI, Voyager ISS, and New
+  Horizons LORRI set `min_read_line_frac` to 0.70 until a sample of their
+  truncated frames measures it; found by #1249.
+- **#1281** — on N1719311354, a truncated F ring frame, `RingEdgeNav`
+  answers 1.5 px from a 19-star consensus at medium tier and outweighs the
+  one star read out; found by #1249.
 - **#836 / #994** — the star model sometimes emits one catalog star twice
   under one feature ID (#836, 23 of 1986 F ring and spokes frames). #994 is
   a likely cause: the catalog reduction queries magnitude bins whose ends

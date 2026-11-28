@@ -1327,7 +1327,7 @@ def test_orchestrator_calibrated_if_mostly_nan_short_circuits() -> None:
     drives the hard-failure short-circuit for calibrated images.
     """
     image = np.full((64, 64), 0.5, np.float64)
-    image[:48, :] = np.nan  # 75% NaN, above the 0.30 clean threshold
+    image[:, :48] = np.nan  # 75% NaN on every line, above the 0.30 clean threshold
     obs = _FakeObs(image=image, inst_config=_nan_marker_calibrated_inst_config())
     model = _FakeStarModel(obs, feature_count=3)
     orch = NavOrchestrator([model], only_techniques=['_FakeStarTechnique'])
@@ -1397,7 +1397,7 @@ def test_mostly_missing_failure_emits_status_reason_info(
 ) -> None:
     """The hard-failure short-circuit (missing-data frame) emits the templated INFO lines."""
     image = np.full((64, 64), 0.5, np.float64)
-    image[:48, :] = np.nan  # 75% NaN, above the 0.30 clean threshold
+    image[:, :48] = np.nan  # 75% NaN on every line, above the 0.30 clean threshold
     obs = _FakeObs(image=image, inst_config=_nan_marker_calibrated_inst_config())
     model = _FakeStarModel(obs, feature_count=3)
     orch = NavOrchestrator([model], only_techniques=['_FakeStarTechnique'])

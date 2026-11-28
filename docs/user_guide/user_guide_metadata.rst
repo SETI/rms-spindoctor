@@ -520,7 +520,8 @@ accompany ``conflicted``. Every other value accompanies ``failed``.
    * - ``image_overexposed``
      - The image classifier saw most pixels at full-well DN.
    * - ``missing_data_dominant``
-     - The image classifier saw too many missing-data pixels.
+     - The image classifier saw too many missing-data pixels on the lines that
+       were read out.
    * - ``image_corrupt``
      - The image file failed to parse or read after loading began.
    * - ``kernels_unavailable``
@@ -803,7 +804,14 @@ The image-quality verdict for this frame:
      - Fraction of pixels at or above the saturation DN, 3 decimals.
    * - ``missing_frac``
      - number
-     - Fraction of pixels equal to the missing-data marker, 3 decimals.
+     - Fraction of pixels that are missing, 3 decimals.
+   * - ``unread_line_frac``
+     - number
+     - Fraction of the image's lines on which every pixel is missing, 3 decimals.
+       These are lines whose pixels are all missing, such as the end of a readout
+       that stopped early. They do not count against the limit on missing pixels, and
+       they never refuse a frame by themselves: the frame is navigated on the lines it
+       read out, if those lines hold enough to navigate on.
    * - ``noise_sigma``
      - number
      - Per-image MAD-based noise sigma in DN units, 3 decimals. Areas where every pixel
@@ -1272,6 +1280,7 @@ entries, four are shown; the two ``TERMINATOR_ARC`` entries follow the same form
           "class": "clean",
           "saturation_frac": 0.0,
           "missing_frac": 0.0,
+          "unread_line_frac": 0.0,
           "noise_sigma": 0.0,
           "max_dn": 0.27,
           "background_gradient_score": 1.732,
@@ -1422,6 +1431,7 @@ block follow the same form as the success example and are shortened here.
           "class": "clean",
           "saturation_frac": 0.0,
           "missing_frac": 0.015,
+          "unread_line_frac": 0.0,
           "noise_sigma": 0.0,
           "max_dn": 251.0,
           "background_gradient_score": 2.594,

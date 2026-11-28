@@ -230,6 +230,11 @@ no single I/F constant identifies the saturated DN ceiling.
 ``saturation_frac`` is always 0.0 and the ``fully_overexposed`` early-out is
 disabled. A camera block has no I/F saturation threshold to set.
 
+A Cassini readout that stopped early leaves its last lines unread, and the label's
+``MISSING_LINES`` counts them. The raw and calibrated products both fill them with 0,
+the marker. Those lines never refuse a frame by themselves: the frame is navigated
+on the lines it read out.
+
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
 ``read_noise_dn``, the calibrated block's
 ``blank_max_if`` and ``noisy_threshold_if``, and both blocks'

@@ -4,12 +4,13 @@ Operates on the entire sensor area and assigns an image to one of a small
 set of classes.  Most "bad" classes never invoke an extractor —
 corrupted images fail in milliseconds with a clear reason.
 
-The classifier is global: no predicted feature positions are used.  Three
+The classifier is global: no predicted feature positions are used.  These
 cheap statistics drive the decision:
 
-    saturation_frac = fraction of pixels at saturation_threshold_dn or above
-    missing_frac    = fraction of pixels equal to missing_data_marker_dn
-    noise_sigma     = MAD-based image noise sigma
+    saturation_frac  = fraction of pixels at saturation_threshold_dn or above
+    missing_frac     = fraction of pixels equal to missing_data_marker_dn
+    unread_line_frac = fraction of lines on which every pixel is missing
+    noise_sigma      = MAD-based image noise sigma
 
 Per-instrument thresholds live in each camera's block; this module
 takes them as constructor parameters so it stays pure-Python and unit-
@@ -55,7 +56,7 @@ class NavImageClassifier:
         image: NDArrayFloatType,
         sensor_mask: NDArrayBoolType | None = None,
         *,
-        missing_frac: float | None = None,
+        missing_mask: NDArrayBoolType | None = None,
     ) -> NavImageClassifierResult:
         """Run the classifier and return its verdict.
 
@@ -63,13 +64,13 @@ class NavImageClassifier:
             image: 2-D float image array (sensor + extfov padding).
             sensor_mask: Optional boolean mask selecting sensor pixels;
                 if ``None``, every pixel is treated as sensor data.
-            missing_frac: Optional pre-computed missing-data fraction over
-                the sensor pixels.  The orchestrator supplies this from the
-                true missing mask (which handles the calibrated-IF
-                ``NaN`` sentinel before the array is sanitized for the
-                finite-only derivative path); when ``None`` the classifier
-                derives the fraction itself from ``missing_data_marker_dn``
-                (using ``np.isnan`` when the marker is itself ``NaN``).
+            missing_mask: Optional boolean mask of the missing pixels, of the same
+                shape as ``image``.  The orchestrator supplies it because it fills
+                the missing pixels, the calibrated-IF ``NaN`` marker among them,
+                before this call, so they can no longer be found by their value.
+                When ``None`` the classifier finds them itself from
+                ``missing_data_marker_dn`` (using ``np.isnan`` when the marker is
+                itself ``NaN``).
 
         Returns:
             NavImageClassifierResult.
@@ -83,9 +84,7 @@ class NavImageClassifier:
             )
         if image.ndim != 2:
             raise TypeError(f'NavImageClassifier requires a 2-D image; got ndim={image.ndim}')
-        if sensor_mask is None:
-            sensor = image
-        else:
+        if sensor_mask is not None:
             if not isinstance(sensor_mask, np.ndarray):
                 raise TypeError(
                     f'sensor_mask must be a numpy ndarray; got {type(sensor_mask).__name__}'
@@ -100,12 +99,12 @@ class NavImageClassifier:
                 raise ValueError('sensor_mask must not be empty')
             if not sensor_mask.any():
                 raise ValueError('sensor_mask must select at least one sensor pixel')
-            sensor = image[sensor_mask]
         # The sensor statistics and the class come from the shared decision in
         # spindoctor.support.image_class, which the simulated-image editor's verdict
-        # also uses.  When the orchestrator supplies ``missing_frac`` (from the true
-        # missing mask, before the NaN marker was filled), it is trusted.
-        statistics = measure_image_quality(sensor, self.thresholds, missing_frac=missing_frac)
+        # also uses.
+        statistics = measure_image_quality(
+            image, self.thresholds, sensor_mask=sensor_mask, missing_mask=missing_mask
+        )
         noise_sigma = estimate_image_noise_sigma(image, sensor_mask)
         # Low-order brightness-ramp score over the 2-D frame (the block-median
         # affine fit needs spatial structure, so it runs on the image array
@@ -127,6 +126,7 @@ class NavImageClassifier:
             image_class=image_class,
             saturation_frac=statistics.saturation_frac,
             missing_frac=statistics.missing_frac,
+            unread_line_frac=statistics.unread_line_frac,
             noise_sigma=noise_sigma,
             max_dn=statistics.max_dn,
             background_gradient_score=background_gradient,

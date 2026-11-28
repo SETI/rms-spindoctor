@@ -221,6 +221,7 @@ def _classifier() -> NavImageClassifierResult:
         image_class='clean',
         saturation_frac=0.0,
         missing_frac=0.0,
+        unread_line_frac=0.0,
         noise_sigma=1.2,
         max_dn=100.0,
         background_gradient_score=1.7,

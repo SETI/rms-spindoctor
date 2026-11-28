@@ -706,12 +706,13 @@ class NavOrchestrator(NavBase):
         """Emit the per-image image-quality classifier verdict at INFO."""
         self._logger.info(
             'Image classifier: class=%s, max_dn=%.4g, noise_sigma=%.3g, '
-            'saturation_frac=%.3f, missing_frac=%.3f',
+            'saturation_frac=%.3f, missing_frac=%.3f, unread_line_frac=%.3f',
             classifier.image_class,
             classifier.max_dn,
             classifier.noise_sigma,
             classifier.saturation_frac,
             classifier.missing_frac,
+            classifier.unread_line_frac,
         )
         if classifier.flags:
             self._logger.info('Image classifier flags: %s', list(classifier.flags))
@@ -1223,17 +1224,15 @@ class NavOrchestrator(NavBase):
         # contract.  ``missing_mask`` is computed for both the ``==
         # marker`` case and the ``isnan(marker)`` case, then the matching
         # pixels are replaced with a finite fill (0.0) so the gradient /
-        # noise path always sees finite data.  The *true* missing fraction
-        # is threaded into the classifier so missing/dropout detection
-        # still fires for calibrated images, and the sensor part of the mask
-        # rides on the context so a technique can leave the filled pixels
-        # out of its measurement (#1207).
+        # noise path always sees finite data.  The mask itself is threaded
+        # into the classifier so missing/dropout detection still fires for
+        # calibrated images and the unread lines of a truncated readout are
+        # found, and the sensor part of the mask rides on the context so a
+        # technique can leave the filled pixels out of its measurement (#1207).
         missing_mask = missing_data_mask(raw_image, settings.marker_value)
         if missing_mask.any():
             raw_image = np.where(missing_mask, 0.0, raw_image)
         sensor_missing = missing_mask & sensor_mask
-        n_sensor = int(sensor_mask.sum())
-        missing_frac = float(sensor_missing.sum()) / float(max(n_sensor, 1))
         image, pre_filter = self._apply_source_image_filter(raw_image, settings.source_image_filter)
         # The classifier and the saturation mask read the *raw* image, not the
         # source-image-filtered ``image``: their absolute-DN gates (blank /
@@ -1241,7 +1240,7 @@ class NavOrchestrator(NavBase):
         # physical properties of the sensor data and become meaningless after a
         # DC-removing filter such as BANDPASS_DOG (a near-full-well region comes
         # out near zero post-DoG).  ``raw_image`` is already NaN-free (markers
-        # were filled above), and the true missing fraction is supplied
+        # were filled above), and the true missing mask is supplied
         # explicitly so the NaN sentinel still drives ``mostly_missing_data`` /
         # ``partial_dropout``.  (With every shipped source_image_filter disabled
         # today, ``image is raw_image`` and this is a no-op.)
@@ -1251,7 +1250,7 @@ class NavOrchestrator(NavBase):
             else settings.thresholds
         )
         classifier = NavImageClassifier(thresholds=classifier_thresholds)
-        classifier_result = classifier.classify(raw_image, sensor_mask, missing_frac=missing_frac)
+        classifier_result = classifier.classify(raw_image, sensor_mask, missing_mask=missing_mask)
         sat_mask = self._build_saturation_mask(raw_image, sensor_mask, settings)
         # Cosmic-ray detection and the derivative DT threshold operate on the
         # *filtered* working ``image``, so their noise sigma is estimated from

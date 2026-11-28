@@ -61,25 +61,43 @@ def test_calibrated_thresholds_have_no_saturation_limit() -> None:
 
 
 @pytest.mark.parametrize(
-    ('max_dn', 'saturation_frac', 'missing_frac', 'expected'),
+    ('max_dn', 'saturation_frac', 'scattered', 'unread', 'expected'),
     [
-        (4.0, 0.9, 0.9, 'blank'),
-        (4095.0, 0.81, 0.9, 'fully_overexposed'),
-        (100.0, 0.80, 0.31, 'mostly_missing_data'),
-        (100.0, 0.80, 0.30, 'clean'),
-        (5.0, 0.0, 0.0, 'clean'),
+        (4.0, 0.9, 0.9, 0.0, 'blank'),
+        (4095.0, 0.81, 0.9, 0.0, 'fully_overexposed'),
+        (100.0, 0.80, 0.31, 0.0, 'mostly_missing_data'),
+        (100.0, 0.80, 0.30, 0.75, 'clean'),
+        (5.0, 0.0, 0.0, 0.0, 'clean'),
+        (100.0, 0.0, 0.0, 0.99, 'clean'),
     ],
-    ids=['blank-first', 'overexposed-before-missing', 'missing', 'at-limits', 'peak-at-blank'],
+    ids=[
+        'blank-first',
+        'overexposed-before-missing',
+        'missing',
+        'at-limits',
+        'peak-at-blank',
+        'unread-lines-never-refuse',
+    ],
 )
 def test_decision_order_and_limits(
-    max_dn: float, saturation_frac: float, missing_frac: float, expected: str
+    max_dn: float, saturation_frac: float, scattered: float, unread: float, expected: str
 ) -> None:
-    """Blank, then overexposed, then missing data; a share at its limit is allowed."""
+    """Blank, then overexposed, then missing data; a share at its limit is allowed.
+
+    Only the missing pixels outside the unread lines count against the missing-pixel
+    limit; the unread lines never refuse a frame.
+    """
     statistics = ImageQualityStatistics(
-        max_dn=max_dn, saturation_frac=saturation_frac, missing_frac=missing_frac
+        max_dn=max_dn,
+        saturation_frac=saturation_frac,
+        missing_frac=scattered + unread,
+        unread_line_frac=unread,
+        scattered_missing_frac=scattered,
     )
     thresholds = raw_thresholds(
-        blank_max_dn=5.0, max_saturation_frac_clean=0.80, max_missing_frac_clean=0.30
+        blank_max_dn=5.0,
+        max_saturation_frac_clean=0.80,
+        max_missing_frac_clean=0.30,
     )
     assert decide_image_class(statistics, thresholds) == expected
 
@@ -88,4 +106,58 @@ def test_measure_counts_a_nan_marker() -> None:
     """With a NaN marker the missing share counts NaN pixels, and the peak skips them."""
     sensor = np.array([[np.nan, 2.0], [3.0, np.nan]])
     statistics = measure_image_quality(sensor, raw_thresholds(missing_data_marker_dn=math.nan))
-    assert statistics == ImageQualityStatistics(max_dn=3.0, saturation_frac=0.0, missing_frac=0.5)
+    assert statistics == ImageQualityStatistics(
+        max_dn=3.0,
+        saturation_frac=0.0,
+        missing_frac=0.5,
+        unread_line_frac=0.0,
+        scattered_missing_frac=0.5,
+    )
+
+
+def test_measure_peak_skips_infinite_pixels() -> None:
+    """The peak is the brightest finite pixel, so an infinite one does not raise it."""
+    image = np.array([[1.0, np.inf], [2.0, 3.0]])
+    statistics = measure_image_quality(image, raw_thresholds(missing_data_marker_dn=0.0))
+    assert statistics.max_dn == 3.0
+
+
+def test_measure_separates_unread_lines_from_scattered_loss() -> None:
+    """A row whose pixels are all missing is an unread line; other missing pixels scatter."""
+    image = np.full((4, 4), 10.0)
+    image[3, :] = 0.0
+    image[0, 1] = 0.0
+    statistics = measure_image_quality(image, raw_thresholds(missing_data_marker_dn=0.0))
+    assert statistics == ImageQualityStatistics(
+        max_dn=10.0,
+        saturation_frac=0.0,
+        missing_frac=5 / 16,
+        unread_line_frac=0.25,
+        scattered_missing_frac=1 / 16,
+    )
+
+
+def test_measure_reads_lines_over_the_sensor_pixels_alone() -> None:
+    """The zero-filled padding is not read: a line is unread when its sensor pixels all are.
+
+    The padding rows have no sensor pixel, so they are not lines of the sensor.
+    """
+    image = np.zeros((6, 6))
+    sensor_mask = np.zeros((6, 6), dtype=bool)
+    sensor_mask[1:5, 1:5] = True
+    image[1:4, 1:5] = 10.0
+    statistics = measure_image_quality(
+        image, raw_thresholds(missing_data_marker_dn=0.0), sensor_mask=sensor_mask
+    )
+    assert statistics.unread_line_frac == 0.25
+
+
+def test_measure_reads_a_supplied_missing_mask() -> None:
+    """A supplied mask marks pixels whose values no longer carry the marker."""
+    image = np.full((4, 4), 10.0)
+    missing = np.zeros((4, 4), dtype=bool)
+    missing[:2, :] = True
+    statistics = measure_image_quality(
+        image, raw_thresholds(missing_data_marker_dn=0.0), missing_mask=missing
+    )
+    assert statistics.unread_line_frac == 0.5
