@@ -1314,8 +1314,8 @@ Star-field centroiding: dim vs bright
 
 Two sweeps measure the star field on the same six-star geometry and planted
 offset, varying only the stars' brightness: ``star_offset_fine`` plants a dim
-field (vmag 6.2-7.2, ~100-150 DN net peak) and ``star_offset_fine_bright`` a bright
-field (vmag 3.2-4.0, ~1000-2000 DN net peak, below the 4095 DN full well).
+field (vmag 6.14-7.14, ~100-150 DN net peak) and ``star_offset_fine_bright`` a bright
+field (vmag 3.14-3.94, ~1000-2000 DN net peak, below the 4095 DN full well).
 
 .. figure:: _figures/star_regime_accuracy.png
    :width: 100%

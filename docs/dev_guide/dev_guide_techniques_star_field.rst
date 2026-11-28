@@ -219,9 +219,9 @@ whose fit fails (too close to the image edge, too few good pixels, no convergenc
 falls back to its moment centroid. The whole step is gated by ``psf_refine_enabled`` and the
 obs supplying a ``star_psf()``; without either it is a no-op and the moment centroids stand.
 
-The observation that drives this is brightness-dependent: a dim field (vmag 6.2-7.2) improves its
+The observation that drives this is brightness-dependent: a dim field (vmag 6.14-7.14) improves its
 recovered-offset median from ~0.052 px (moment-only) to ~0.023 px, while a bright field
-(vmag 3.2-4.0) recovers to ~0.005 px on the moment alone -- where forcing the PSF fit would
+(vmag 3.14-3.94) recovers to ~0.005 px on the moment alone -- where forcing the PSF fit would
 instead *raise* the error to ~0.056 px by exposing the bias floor. See the simulator
 performance report's star-field centroiding section for the dim-vs-bright sweep.
 
