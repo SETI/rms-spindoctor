@@ -774,7 +774,7 @@ tests.
     :math:`(\Delta v, \Delta u) = (6.08, -1.53)` px.
 
 ``high_phase_terminator`` (Cassini ISS NAC, image ``N1597846115_2``)
-    A high-phase terminator arc, with a few stars in the field and no other body or ring. The
+    A high-phase terminator arc. A few stars share the field, but no other body or ring. The
     model emits a
     :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` feature (the lit limb survives)
     and a :data:`~spindoctor.feature.feature_type.NavFeatureType.TERMINATOR_ARC` feature (the

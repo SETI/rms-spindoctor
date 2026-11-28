@@ -399,7 +399,7 @@ Examples
 ========
 
 ``high_phase_terminator`` (Cassini ISS NAC, image ``N1597846115_2``)
-    A high-phase terminator arc, with a few stars in the field and no other body or ring. The
+    A high-phase terminator arc. A few stars share the field, but no other body or ring. The
     body model offers a single ``TERMINATOR_ARC`` feature, but
     :class:`~spindoctor.nav_technique.nav_technique_body_terminator.BodyTerminatorNav` runs as a
     fallback, and here :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`
