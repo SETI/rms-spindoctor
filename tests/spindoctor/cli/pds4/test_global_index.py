@@ -25,7 +25,7 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
-from tests.product_sections import plane_entry
+from tests.packaged_sections import plane_entry
 
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.cli.pds4.index_columns import IndexValueFormat

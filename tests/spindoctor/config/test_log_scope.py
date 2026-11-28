@@ -412,11 +412,11 @@ def _configure_strict_scope(monkeypatch: pytest.MonkeyPatch, value: bool) -> Non
         value: The value the key reads.
     """
     DEFAULT_CONFIG.ensure_loaded()
-    sections = DEFAULT_CONFIG._sections
+    sections = DEFAULT_CONFIG._nav_config
     assert sections is not None
     logging_section = dataclasses.replace(sections.logging, strict_scope=value)
     monkeypatch.setattr(
-        DEFAULT_CONFIG, '_sections', dataclasses.replace(sections, logging=logging_section)
+        DEFAULT_CONFIG, '_nav_config', dataclasses.replace(sections, logging=logging_section)
     )
 
 

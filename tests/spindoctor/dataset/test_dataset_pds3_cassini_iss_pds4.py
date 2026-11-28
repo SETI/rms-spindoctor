@@ -12,6 +12,7 @@ from pathlib import Path
 
 import julian
 import pytest
+from tests.packaged_sections import NavConfigWith
 from tests.spindoctor.cli.pds4.conftest import make_image_file, navigated_document
 
 from spindoctor.config import DEFAULT_CONFIG, Config
@@ -44,12 +45,9 @@ def test_cassini_data_lid_canonical_form(tmp_path: Path) -> None:
     assert lid == 'urn:nasa:pds:cassini_iss_saturn_backplanes_rsfrench2027:data:1454725799n'
 
 
-def test_cassini_lidvid_version_field(tmp_path: Path) -> None:
+def test_cassini_lidvid_version_field(tmp_path: Path, nav_config_with: NavConfigWith) -> None:
     """A LIDVID is its LID at the version the configuration gives the bundle."""
-    override = tmp_path / 'override.yaml'
-    override.write_text("pds4:\n  coiss_saturn:\n    bundle_version: '2.5'\n", encoding='utf-8')
-    config = Config()
-    config.update_config(override)
+    config = nav_config_with({'pds4': {'coiss_saturn': {'bundle_version': '2.5'}}})
     dataset = _cassini_dataset(tmp_path, config=config)
     lid = dataset.pds4_image_name_to_data_lid('N1454725799')
     lidvid = dataset.pds4_image_name_to_data_lidvid('N1454725799')
@@ -194,33 +192,30 @@ def test_cassini_default_template_dir_is_shipped_package_data(tmp_path: Path) ->
     assert (template_dir / 'global_bodies_index.lblx').is_file()
 
 
-def test_cassini_config_overrides_template_dir_and_bundle_name(tmp_path: Path) -> None:
+def test_cassini_config_overrides_template_dir_and_bundle_name(
+    tmp_path: Path, nav_config_with: NavConfigWith
+) -> None:
     """config pds4.<dataset>.template_dir/bundle_name override the shipped values."""
-    override = tmp_path / 'override.yaml'
-    override.write_text(
-        'pds4:\n'
-        '  coiss_saturn:\n'
-        '    template_dir: /absolute/custom/templates\n'
-        '    bundle_name: custom_bundle_name\n',
-        encoding='utf-8',
+    config = nav_config_with(
+        {
+            'pds4': {
+                'coiss_saturn': {
+                    'template_dir': '/absolute/custom/templates',
+                    'bundle_name': 'custom_bundle_name',
+                }
+            }
+        }
     )
-    config = Config()
-    config.update_config(override)
     dataset = _cassini_dataset(tmp_path, config=config)
     assert dataset.pds4_bundle_template_dir() == '/absolute/custom/templates'
     assert dataset.pds4_bundle_name() == 'custom_bundle_name'
 
 
 def test_cassini_relative_template_dir_override_resolves_under_templates(
-    tmp_path: Path,
+    tmp_path: Path, nav_config_with: NavConfigWith
 ) -> None:
     """A bare-name template_dir override resolves under the packaged templates dir."""
-    override = tmp_path / 'override.yaml'
-    override.write_text(
-        'pds4:\n  coiss_saturn:\n    template_dir: my_custom_set\n', encoding='utf-8'
-    )
-    config = Config()
-    config.update_config(override)
+    config = nav_config_with({'pds4': {'coiss_saturn': {'template_dir': 'my_custom_set'}}})
     dataset = _cassini_dataset(tmp_path, config=config)
     template_dir = Path(dataset.pds4_bundle_template_dir())
     assert template_dir.name == 'my_custom_set'

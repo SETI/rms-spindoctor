@@ -155,7 +155,9 @@ and the setting. Your file cannot unset a default. It can only give it another v
 
 When your file is read, a setting that SpinDoctor does not know, or a value it cannot use,
 such as a fraction above 1 or a star count of 0, is refused too, and the message gives the
-file and the setting.
+file and the setting. A whole section that SpinDoctor does not know is refused the same
+way, so a section left in ``nav_default_config.yaml`` after SpinDoctor stopped reading it
+keeps the program from starting until you delete it.
 
 In a ring catalog, each gap or ringlet needs at least one edge, and each edge needs
 exactly one base orbit, the entry that gives its semi-major axis. A gap or ringlet that

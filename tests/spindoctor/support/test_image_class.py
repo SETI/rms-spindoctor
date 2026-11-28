@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
-from tests.camera_sections import calibrated_camera, raw_camera, raw_thresholds
+from tests.packaged_sections import calibrated_camera, raw_camera, raw_thresholds
 
 from spindoctor.support.image_class import (
     ImageQualityStatistics,

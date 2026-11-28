@@ -11,9 +11,12 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import pytest
+from tests.packaged_sections import TEST_OVERRIDE_LABEL, NavConfigWith
 
 import spindoctor
 from spindoctor.config.config import Config
@@ -37,22 +40,17 @@ from spindoctor.schema import SchemaError
 from spindoctor.support.nav_base import NavBase
 
 
-def _config_with_logging(tmp_path: Path, body: str) -> Config:
-    """Build a Config whose logging section is overridden by ``body``.
+def _config_with_logging(nav_config_with: NavConfigWith, logging: Mapping[str, Any]) -> Config:
+    """Build a Config whose logging section is overridden by ``logging``.
 
     Parameters:
-        tmp_path: Directory to write the override file into.
-        body: YAML text placed under a ``logging:`` key.
+        nav_config_with: Builds a configuration from an override.
+        logging: The mapping placed under the ``logging`` key.
 
     Returns:
-        A loaded Config carrying the shipped defaults plus ``body``.
+        A loaded Config carrying the shipped defaults plus ``logging``.
     """
-    override = tmp_path / 'override.yaml'
-    override.write_text(f'logging:\n{body}')
-    config = Config()
-    config.read_config()
-    config.update_config(str(override))
-    return config
+    return nav_config_with({'logging': logging})
 
 
 # ---------------------------------------------------------------------------
@@ -186,31 +184,46 @@ def test_shipped_defaults_disable_strict_scope() -> None:
     ('category', 'key'),
     [('techniques', 'titan_haze'), ('models', 'rings'), ('other', 'correlate')],
 )
-def test_a_registered_module_key_is_accepted(tmp_path: Path, category: str, key: str) -> None:
+def test_a_registered_module_key_is_accepted(
+    nav_config_with: NavConfigWith, category: str, key: str
+) -> None:
     """Each category accepts the keys of its registry.
 
     Parameters:
-        tmp_path: Directory to write the override file into.
+        nav_config_with: Builds a configuration from an override.
         category: The category the override sets a level in.
         key: A module key the category's registry holds.
     """
-    config = _config_with_logging(tmp_path, f'  {category}:\n    {key}: DEBUG\n')
+    config = _config_with_logging(nav_config_with, {category: {key: 'DEBUG'}})
     assert config.logging.categories()[category][key] == 'DEBUG'
 
 
-def test_a_program_block_merges_over_the_top_level_settings(tmp_path: Path) -> None:
+def test_a_program_block_merges_over_the_top_level_settings(
+    nav_config_with: NavConfigWith,
+) -> None:
     """A program block that sets every key wins key by key; categories merge."""
     config = _config_with_logging(
-        tmp_path,
-        '  main: INFO\n  image: INFO\n  main_console: false\n  image_console: false\n'
-        '  techniques:\n    body_limb: ERROR\n    titan_haze: ERROR\n'
-        '  models:\n    rings: ERROR\n    stars: ERROR\n'
-        '  other:\n    obs: ERROR\n'
-        f'  programs:\n    {SD_MOSAIC}:\n      main: DEBUG\n      image: WARNING\n'
-        '      main_console: true\n      image_console: true\n'
-        '      techniques:\n        titan_haze: DEBUG\n'
-        '      models:\n        stars: DEBUG\n'
-        '      other:\n        annotate: DEBUG\n',
+        nav_config_with,
+        {
+            'main': 'INFO',
+            'image': 'INFO',
+            'main_console': False,
+            'image_console': False,
+            'techniques': {'body_limb': 'ERROR', 'titan_haze': 'ERROR'},
+            'models': {'rings': 'ERROR', 'stars': 'ERROR'},
+            'other': {'obs': 'ERROR'},
+            'programs': {
+                SD_MOSAIC: {
+                    'main': 'DEBUG',
+                    'image': 'WARNING',
+                    'main_console': True,
+                    'image_console': True,
+                    'techniques': {'titan_haze': 'DEBUG'},
+                    'models': {'stars': 'DEBUG'},
+                    'other': {'annotate': 'DEBUG'},
+                }
+            },
+        },
     )
     section = config.logging.for_program(SD_MOSAIC)
     assert section.main == 'DEBUG'
@@ -225,27 +238,27 @@ def test_a_program_block_merges_over_the_top_level_settings(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize(
-    ('body', 'expected'),
+    ('logging', 'expected'),
     [
         (
-            '  techniques:\n    titan_hazey: DEBUG\n',
+            {'techniques': {'titan_hazey': 'DEBUG'}},
             "logging.techniques.titan_hazey: 'titan_hazey' is not a known techniques key",
         ),
         (
-            '  models:\n    ringz: DEBUG\n',
+            {'models': {'ringz': 'DEBUG'}},
             "logging.models.ringz: 'ringz' is not a known models key",
         ),
         (
-            '  other:\n    reproj: DEBUG\n',
+            {'other': {'reproj': 'DEBUG'}},
             "logging.other.reproj: 'reproj' is not a known other key",
         ),
-        ('  main: CHATTY\n', "logging.main: 'CHATTY' is not one of"),
+        ({'main': 'CHATTY'}, "logging.main: 'CHATTY' is not one of"),
         (
-            '  programs:\n    sd_nonesuch:\n      main: INFO\n',
+            {'programs': {'sd_nonesuch': {'main': 'INFO'}}},
             "logging.programs.sd_nonesuch: 'sd_nonesuch' is not a known program",
         ),
         (
-            f'  programs:\n    {SD_OFFSET}:\n      strict_scope: true\n',
+            {'programs': {SD_OFFSET: {'strict_scope': True}}},
             f"logging.programs.{SD_OFFSET}: unknown keys: ['strict_scope']",
         ),
     ],
@@ -259,18 +272,17 @@ def test_a_program_block_merges_over_the_top_level_settings(tmp_path: Path) -> N
     ],
 )
 def test_a_bad_logging_override_is_refused_at_load(
-    tmp_path: Path, body: str, expected: str
+    nav_config_with: NavConfigWith, logging: dict[str, Any], expected: str
 ) -> None:
-    """A key or level the section does not accept is refused with the file and key path.
+    """A key or level the section does not accept is refused with its source and key path.
 
     Parameters:
-        tmp_path: Directory to write the override file into.
-        body: YAML text placed under a ``logging:`` key.
+        nav_config_with: Builds a configuration from an override.
+        logging: The mapping placed under the ``logging`` key.
         expected: The message's key path and problem.
     """
-    override = tmp_path / 'override.yaml'
-    with pytest.raises(SchemaError, match=re.escape(f'{override}: {expected}')):
-        _config_with_logging(tmp_path, body)
+    with pytest.raises(SchemaError, match=re.escape(f'{TEST_OVERRIDE_LABEL}: {expected}')):
+        _config_with_logging(nav_config_with, logging)
 
 
 def test_the_parse_reads_complete_registries_on_its_own(tmp_path: Path) -> None:

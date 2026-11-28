@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from astropy.io import fits
 from filecache import FCPath
-from tests.product_sections import plane_entry
+from tests.packaged_sections import plane_entry
 
 from spindoctor.cli.backplanes.backplanes_bodies import BODY_LONGITUDE
 from spindoctor.cli.backplanes.backplanes_rings import RING_LONGITUDE, RING_LONGITUDINAL_RESOLUTION

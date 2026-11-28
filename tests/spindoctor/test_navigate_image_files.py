@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 from filecache import FCPath
 from PIL import Image
-from tests.camera_sections import raw_camera
+from tests.packaged_sections import raw_camera
 
 from spindoctor.annotation import Annotation, Annotations
 from spindoctor.dataset.dataset import ImageFile, ImageFiles

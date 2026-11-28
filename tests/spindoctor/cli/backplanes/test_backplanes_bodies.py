@@ -17,7 +17,7 @@ from typing import Any, cast
 import numpy as np
 import numpy.ma as ma
 import pytest
-from tests.product_sections import plane_entry
+from tests.packaged_sections import plane_entry
 
 from spindoctor.cli.backplanes import backplanes_bodies as bodies_mod
 from spindoctor.cli.backplanes.backplanes_bodies import (
