@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from typing import Any, NoReturn
 
 from filecache import FCPath
-from tests.product_sections import packaged_backplanes
+from tests.packaged_sections import packaged_backplanes
 
 from spindoctor.config.sections_products import Pds4Schema
 from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass

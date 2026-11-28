@@ -5,9 +5,9 @@ from __future__ import annotations
 import dataclasses
 import os
 import shutil
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pdslogger
 import pytest
@@ -17,11 +17,18 @@ from spindoctor.config import (
     DEFAULT_CONFIG,
     IMAGE_LOGGER,
     MAIN_LOGGER,
+    Config,
     set_log_levels,
     set_strict_scope,
     strict_scope_override,
 )
 from spindoctor.config.log_scope import _reset_reported_call_sites
+from spindoctor.schema import Layer
+from tests.packaged_sections import (
+    TEST_OVERRIDE_LABEL,
+    NavConfigWith,
+    preserved_technique_settings,
+)
 
 if TYPE_CHECKING:
     from tests.mini_nav_results.cohort import WrittenCohorts
@@ -31,6 +38,38 @@ if TYPE_CHECKING:
 def config_fixture() -> None:
     """Load bundled default config before each test if not already loaded."""
     DEFAULT_CONFIG.ensure_loaded()
+
+
+@pytest.fixture
+def nav_config_with() -> Iterator[NavConfigWith]:
+    """Build configurations whose files are the packaged ones with an override merged over.
+
+    The fixture is a function: it takes an override, written as a user override file
+    would write it, and returns a configuration already loaded from the packaged files
+    with the override merged over them, so a refused override raises at the call.  A
+    message gives the override's source as :data:`tests.packaged_sections.TEST_OVERRIDE_LABEL`.
+    Loading a configuration assigns each technique class its settings, so the fixture puts
+    them back after the test.
+
+    Yields:
+        The function.
+    """
+
+    def load(overrides: Mapping[str, Any]) -> Config:
+        """Return a loaded configuration with ``overrides`` merged over the packaged files.
+
+        Parameters:
+            overrides: The override.
+
+        Returns:
+            The configuration.
+        """
+        config = Config(overrides=[Layer(overrides, TEST_OVERRIDE_LABEL)])
+        config.read_config()
+        return config
+
+    with preserved_technique_settings():
+        yield load
 
 
 USER_CONFIG_NAME = 'nav_default_config.yaml'

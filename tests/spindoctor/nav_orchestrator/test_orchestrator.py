@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.camera_sections import calibrated_camera, raw_camera, raw_thresholds
+from tests.packaged_sections import calibrated_camera, raw_camera, raw_thresholds
 
 from spindoctor.annotation import Annotations
 from spindoctor.config import LogLevels, set_log_levels

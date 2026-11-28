@@ -2,7 +2,7 @@
 
 import math
 
-from tests.camera_sections import calibrated_camera, raw_camera
+from tests.packaged_sections import calibrated_camera, raw_camera
 
 from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs

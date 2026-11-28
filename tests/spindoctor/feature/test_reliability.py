@@ -3,7 +3,7 @@
 import dataclasses
 
 import numpy as np
-from tests.orchestrator_section import packaged_gate
+from tests.packaged_sections import packaged_gate
 
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType

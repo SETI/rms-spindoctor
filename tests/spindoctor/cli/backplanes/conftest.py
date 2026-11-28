@@ -14,7 +14,7 @@ from typing import Any, cast
 import numpy as np
 import oops
 from oops.observation import Snapshot
-from tests.product_sections import packaged_backplanes
+from tests.packaged_sections import packaged_backplanes
 
 from spindoctor.config import Config
 from spindoctor.config.sections_products import PlaneEntry

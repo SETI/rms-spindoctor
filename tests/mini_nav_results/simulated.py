@@ -21,7 +21,7 @@ from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
-from tests.orchestrator_section import packaged_tiers
+from tests.packaged_sections import packaged_tiers
 
 from .shared import classifier, holdings_path, navigated, provenance
 

@@ -7,13 +7,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tests.camera_sections import (
+from tests.packaged_sections import (
     PACKAGED_CAMERAS,
     calibrated_camera,
     camera_mapping,
+    packaged_sections,
     raw_camera,
 )
-from tests.packaged_sections import packaged_sections
 
 from spindoctor.config import Config
 from spindoctor.config.sections_camera import CameraBlock

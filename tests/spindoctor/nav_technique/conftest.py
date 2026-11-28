@@ -35,7 +35,7 @@ from collections.abc import Callable
 
 import numpy as np
 import pytest
-from tests.camera_sections import raw_camera
+from tests.packaged_sections import raw_camera
 
 from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown

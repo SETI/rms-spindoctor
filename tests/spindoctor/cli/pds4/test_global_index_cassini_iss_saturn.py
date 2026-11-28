@@ -29,7 +29,7 @@ import pytest
 from filecache import FCPath
 from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
-from tests.product_sections import plane_entry
+from tests.packaged_sections import plane_entry
 
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files

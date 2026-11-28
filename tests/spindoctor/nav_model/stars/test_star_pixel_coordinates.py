@@ -22,8 +22,7 @@ import numpy as np
 import pytest
 from oops.fov import FlatFOV
 from psfmodel import GaussianPSF
-from tests.camera_sections import raw_camera
-from tests.model_sections import packaged_stars
+from tests.packaged_sections import packaged_stars, raw_camera
 
 from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.nav_model_stars import (
