@@ -779,8 +779,10 @@ tests.
     :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` feature (the lit limb survives)
     and a :data:`~spindoctor.feature.feature_type.NavFeatureType.TERMINATOR_ARC` feature (the
     terminator polyline meets the minimum vertex count and the phase factor sits above the
-    minimum). The stars put the offset at :math:`(\Delta v, \Delta u) = (8.17, 1.48)` px; the
-    limb fit lands about 2.6 px short of that in :math:`v`.
+    minimum). The stars put the offset at :math:`(\Delta v, \Delta u) = (8.17, 1.48)` px,
+    relative to Cassini's reconstructed C kernels for 2008 day 232 (the metadata document's
+    provenance lists every kernel furnished); the limb fit lands about 2.6 px short of that in
+    :math:`v`.
 
 ``multi_body`` (Cassini ISS NAC, image ``N1487595731_1``)
     Dione and Rhea both visible and overlapping at phase angle approximately 90 degrees.

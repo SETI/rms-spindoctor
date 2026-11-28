@@ -404,7 +404,8 @@ Examples
     :class:`~spindoctor.nav_technique.nav_technique_body_terminator.BodyTerminatorNav` runs as a
     fallback, and here :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`
     answers for the body first, so the terminator fit is skipped. The stars put the offset at
-    :math:`(\Delta v, \Delta u) = (8.17, 1.48)` px.
+    :math:`(\Delta v, \Delta u) = (8.17, 1.48)` px, relative to Cassini's reconstructed C
+    kernels for 2008 day 232 (the metadata document's provenance lists every kernel furnished).
 
 ``body_partial_overflow`` (Cassini ISS NAC, image ``N1484593951_2``)
     Rhea visible in the upper right with about 22 % of the disc off-frame. The body model
