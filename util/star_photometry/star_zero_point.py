@@ -273,15 +273,21 @@ def fit_star_rates(
         covariates: Row keys of numeric values the residuals are regressed on.
 
     Returns:
-        The fit, or None when there are fewer than ``MIN_RATE_STARS`` rows.
+        The fit, or None when there are fewer than ``MIN_RATE_STARS`` rows or when the
+        stars, before or after the robust weighting drops outliers, all share one color
+        so that the rate and the color term cannot be told apart.
     """
     if len(rows) < MIN_RATE_STARS:
         return None
     z = np.array([2.5 * math.log10(r['rate']) + r['vmag'] for r in rows])
     color = np.array([r['bv'] - reference_color for r in rows], dtype=np.float64)
     design = np.column_stack([np.ones(len(rows)), color])
+    if not _full_rank(design):
+        return None
     x, sx, resid, weights = _tukey_lstsq(design, z)
     used = weights > 0.0
+    if not _full_rank(design[used]):
+        return None
     kept = resid[used]
     scatter = float(1.4826 * np.median(np.abs(kept - np.median(kept))))
     by_frame: dict[str, list[float]] = defaultdict(list)

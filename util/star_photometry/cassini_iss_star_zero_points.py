@@ -887,7 +887,7 @@ def _fit_rows(rows: list[dict[str, Any]], key: str) -> RateFit | None:
         key: The row key of the rate fitted.
 
     Returns:
-        The fit, or None with too few rows.
+        The fit, or None with too few rows or stars of one color.
     """
     return fit_star_rates(
         [{**row, 'rate': row[key]} for row in rows if key in row],

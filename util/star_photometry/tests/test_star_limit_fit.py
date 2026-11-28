@@ -270,6 +270,24 @@ def test_rate_fit_needs_five_stars() -> None:
     assert fit_star_rates(_rate_rows(4), reference_color=0.65) is None
 
 
+def test_rate_fit_refuses_stars_of_one_color() -> None:
+    """Stars that all share one color cannot separate the rate from the color term."""
+    rows = _rate_rows(20)
+    for r in rows:
+        r['bv'] = 1.65
+    assert fit_star_rates(rows, reference_color=0.65) is None
+
+
+def test_rate_fit_refuses_when_rejection_leaves_one_color() -> None:
+    """Two stars of another color, far off in opposite directions, are rejected."""
+    rows = _rate_rows(20)
+    for k, r in enumerate(rows):
+        r['bv'] = 0.5 if k < 18 else 1.2
+        if k >= 18:
+            r['rate'] *= 10 ** (4.0 if k == 18 else -4.0)
+    assert fit_star_rates(rows, reference_color=0.65) is None
+
+
 def _terms_result() -> FitResult:
     """Return a fit that measured CLEAR and 10K and took RED and 40K from calibration.
 
