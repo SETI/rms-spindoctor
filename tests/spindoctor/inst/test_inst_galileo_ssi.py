@@ -49,14 +49,14 @@ def test_galileo_ssi_basic() -> None:
     assert obs.midtime == -110923771.04177806
 
 
-@pytest.mark.parametrize(('tlmfmt', 'expected'), [('HCM', 12.397), ('AI8', 13.389)])
+@pytest.mark.parametrize(('tlmfmt', 'expected'), [('HCM', 12.649), ('AI8', 13.860)])
 def test_clear_one_second_limit_is_each_readout_modes_calibrated_value(
     tlmfmt: str, expected: float
 ) -> None:
     """At 1 s through CLEAR at 10K each readout mode reaches its own limit.
 
-    2.34e8 e-/s over 38.7 e-/DN puts 6.05e6 DN/s in the image for V = 0, so the dimmest
-    visible star of a full frame, 167 DN, is V 11.40, and of a summed frame, 67 DN, V 12.39.
+    3.18e8 e-/s over 38.7 e-/DN puts 8.22e6 DN/s in the image for V = 0, so the dimmest
+    visible star of a full frame, 180 DN, is V 11.65, and of a summed frame, 59 DN, V 12.86.
     """
     assert _star_obs(tlmfmt=tlmfmt).star_max_usable_vmag() == pytest.approx(expected, abs=0.001)
 
@@ -68,9 +68,9 @@ def test_ten_times_the_exposure_deepens_the_limit_by_two_and_a_half_magnitudes()
 
 
 def test_the_gain_item_selects_the_gain_state() -> None:
-    """GAIN 2 is the 100K state, whose 378.1 e-/DN dims a star against 10K's 38.7."""
+    """GAIN 2 is the 100K state, whose 474.5 e-/DN dims a star against 10K's 38.7."""
     shift = _star_obs(gain=2).star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
-    assert shift == pytest.approx(-2.5 * math.log10(378.1 / 38.7), abs=1e-9)
+    assert shift == pytest.approx(-2.5 * math.log10(474.5 / 38.7), abs=1e-9)
 
 
 def test_a_filter_brightens_the_limit_by_its_magnitude_offset() -> None:

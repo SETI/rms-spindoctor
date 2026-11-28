@@ -66,27 +66,27 @@ newhorizons_lorri:
   # Binning changes the electrons per DN, the noise of a pixel, and
   # the width of a star in pixels, so each of those is given per mode.
   #
-  # Measured on star fields of the cruise and the Pluto approach (#130): 341 frames with an
+  # Measured on star fields of the cruise and the Pluto approach (#130): 340 frames with an
   # independent pointing fix from three or more agreeing stars, one frame in three held
   # out.  Frames shorter than 50 ms are left out of the fit: LORRI has no shutter, so the
   # frame transfer adds light to a short exposure.  util/star_photometry and its fit
-  # commands give the method.
+  # commands give the method.  The magnitudes are Johnson V (#1257).
   star_photometry:
-    # Fit: 3.605e7 DN/s for V = 0 at 1X1 (+-0.01 mag, 4310 stars), times 21.0 e-/DN.
+    # Fit: 3.757e7 DN/s for V = 0 at 1X1 (+-0.02 mag, 4178 stars), times 21.0 e-/DN.
     # Weaver et al. 2020's zero point (18.78 at 1X1) gives 3.2e7 DN/s.
     flux_unit: electrons
-    flux_per_s_vmag0: 7.57e+08
-    # Weaver et al. 2020.  The stars measure the 4X4/1X1 DN ratio at 1.054 (+-0.01 mag)
+    flux_per_s_vmag0: 7.89e+08
+    # Weaver et al. 2020.  The stars measure the 4X4/1X1 DN ratio at 1.196 (+-0.02 mag)
     # against the 1.082 these values give.
     gain:
       1X1: 21.0
       4X4: 19.4
-    # Fit: 110 +- 7 DN at 1X1 and 60 +- 4 DN at 4X4, each the DN at 80% of the way from
+    # Fit: 106 +- 5 DN at 1X1 and 66 +- 5 DN at 4X4, each the DN at 80% of the way from
     # the detection floor to the plateau of a detection-probability curve fitted to every
     # clean star of that mode.
     min_detectable_dn:
-      1X1: 110.0
-      4X4: 60.0
+      1X1: 106.0
+      4X4: 66.0
     # As in the earlier navigation software, which searched 1 mag past the dimmest
     # visible star.
     search_depth_mag: 1.0

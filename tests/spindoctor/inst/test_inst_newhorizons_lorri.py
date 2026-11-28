@@ -31,14 +31,14 @@ def test_newhorizons_lorri_basic() -> None:
     assert obs.midtime == 490113790.9641424
 
 
-@pytest.mark.parametrize(('rows', 'expected'), [(1024, 14.789), (256, 15.533)])
+@pytest.mark.parametrize(('rows', 'expected'), [(1024, 14.874), (256, 15.474)])
 def test_one_second_limit_is_each_binning_modes_calibrated_value(
     rows: int, expected: float
 ) -> None:
     """At 1 s each binning mode reaches its own limit.
 
-    7.57e8 e-/s over 21.0 e-/DN puts 3.60e7 DN/s in an unbinned frame for V = 0, so the
-    dimmest visible star, 110 DN, is V 13.79; a binned frame reads 19.4 e-/DN and 60 DN.
+    7.89e8 e-/s over 21.0 e-/DN puts 3.76e7 DN/s in an unbinned frame for V = 0, so the
+    dimmest visible star, 106 DN, is V 13.87; a binned frame reads 19.4 e-/DN and 66 DN.
     """
     assert _star_obs(rows=rows).star_max_usable_vmag() == pytest.approx(expected, abs=0.001)
 

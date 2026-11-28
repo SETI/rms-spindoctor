@@ -18,11 +18,11 @@
 # I/F, but the limit depends only on the ratio of the rate to min_detectable_dn, and the
 # two share a scale.
 #
-# Voyager 2's cameras are measured on star fields of its cruise and encounters (#130):
-# 36 narrow-angle and 47 wide-angle frames with an independent pointing fix from three or
-# more agreeing stars, one frame in three held out.  Voyager 1 gave only 1 such frame,
-# so its rates are Voyager 2's scaled by the bench sensitivities of Benesh and Jepsen 1978
-# (JPL 618-802).  Its cameras are S/N 07 (narrow angle) and S/N 06 (wide angle);
+# Voyager 2's cameras are measured on star fields of its cruise and encounters (#130),
+# against Johnson V magnitudes (#1257): 38 narrow-angle and 47 wide-angle frames with an
+# independent pointing fix from three or more agreeing stars, one frame in three held
+# out.  Voyager 1 gave only 1 such frame, so its rates are Voyager 2's scaled by the
+# bench sensitivities of Benesh and Jepsen 1978 (JPL 618-802).  Its cameras are S/N 07 (narrow angle) and S/N 06 (wide angle);
 # Voyager 2's are S/N 05 and S/N 04.  util/star_photometry and its fit commands give the
 # method.  Filter offsets are 2.5 log10 of the camera's solar filter factor (Benesh and
 # Jepsen 1978, Tables 3-5 to 3-8), because a filter or gain state is measured only from
@@ -70,14 +70,14 @@ voyager_iss:
       # response over S/N 05's (light-transfer slopes 2.10 and 3.27 DN/fLs, Figures 4-3
       # and 4-5, over the solar conversion factors 6.88e-9 and 6.94e-9, Table 4-2).
       flux_unit: dn
-      flux_per_s_vmag0: 5.60e+04
+      flux_per_s_vmag0: 4.52e+04
       # Benesh and Jepsen 1978, Table 4-3 (S/N 07).
       gain:
         LOW: 1.0
         HIGH: 3.92
       # Voyager 2's narrow-angle value.
       min_detectable_dn:
-        ALL: 110.0
+        ALL: 64.0
       # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
       # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the
       # narrow-angle camera to V 9.5 in 0.96 s) is 1.6-2.3 mag deeper than measured.
@@ -136,14 +136,14 @@ voyager_iss:
       # response over S/N 04's (light-transfer slopes 14.1 and 22.6 DN/fLs, Figures 4-4
       # and 4-2, over the solar conversion factors 8.81e-9 and 8.48e-9, Table 4-2).
       flux_unit: dn
-      flux_per_s_vmag0: 2.74e+03
+      flux_per_s_vmag0: 2.84e+03
       # Benesh and Jepsen 1978, Table 4-3 (S/N 06).
       gain:
         LOW: 1.0
         HIGH: 3.94
       # Voyager 2's wide-angle value.
       min_detectable_dn:
-        ALL: 35.0
+        ALL: 33.0
       # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
       # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the
       # narrow-angle camera to V 9.5 in 0.96 s) is 1.6-2.3 mag deeper than measured.
@@ -200,19 +200,18 @@ voyager_iss:
       mag_offset_table:
         'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
     star_photometry:
-      # 8.64e4 raw DN/s for V = 0 through CLEAR at low gain.  The fit gives 8.65e4 (+-0.07
-      # mag, 48 stars), within the uncertainty of the value kept.
+      # Fit: 6.98e4 raw DN/s for V = 0 through CLEAR at low gain (+-0.07 mag, 36 stars).
       flux_unit: dn
-      flux_per_s_vmag0: 8.64e+04
+      flux_per_s_vmag0: 6.98e+04
       # Benesh and Jepsen 1978, Table 4-3 (S/N 05).  Every measured frame is low gain.
       gain:
         LOW: 1.0
         HIGH: 4.24
-      # Fit: 101 +- 27 DN, the DN at 80% of the way from the detection floor to the
+      # Fit: 64 +- 17 DN, the DN at 80% of the way from the detection floor to the
       # plateau of a detection-probability curve fitted to the clean stars taken through
       # CLEAR at low gain.
       min_detectable_dn:
-        ALL: 110.0
+        ALL: 64.0
       # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
       # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the
       # narrow-angle camera to V 9.5 in 0.96 s) is 1.6-2.3 mag deeper than measured.
@@ -268,18 +267,19 @@ voyager_iss:
       mag_offset_table:
         'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
     star_photometry:
-      # Fit on 13 bright Tycho stars: 4.6e3 raw DN/s for V = 0 through CLEAR at low gain
-      # (+-0.20 mag).  Fainter stars (V 8-10) read 1.1-1.5 mag brighter than this rate
-      # predicts, which points to a compressive vidicon response at high signal.
+      # Fit on 17 bright stars: 4.73e3 raw DN/s for V = 0 through CLEAR at low gain
+      # (+-0.23 mag).  Fainter stars read brighter than this rate predicts, by 0.5 mag at
+      # V 8-9 and 1.2 mag at V 9-10, which points to a compressive vidicon response at
+      # high signal.
       flux_unit: dn
-      flux_per_s_vmag0: 4.6e+03
+      flux_per_s_vmag0: 4.73e+03
       # Benesh and Jepsen 1978, Table 4-3 (S/N 04).  Every measured frame is low gain.
       gain:
         LOW: 1.0
         HIGH: 4.04
-      # Fit: 35 +- 22 DN, measured as for the narrow-angle camera.
+      # Fit: 33 +- 19 DN, measured as for the narrow-angle camera.
       min_detectable_dn:
-        ALL: 35.0
+        ALL: 33.0
       # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
       # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the
       # narrow-angle camera to V 9.5 in 0.96 s) is 1.6-2.3 mag deeper than measured.
