@@ -363,11 +363,11 @@ Known limitations
   from the Voyager 2 wide angle measurement, which under-represents the spread
   between the four cameras' optics.
 * By default the simulator draws Voyager 2 stars with each camera's point-spread
-  function as measured on its own star frames before the archive's resampling. A
-  simulated star is round and equally wide at every brightness. A real star is 1.2 to
-  1.7 times longer than wide, and one that peaks near the top of the 8-bit range is
-  nearly twice as wide as a faint one. The Voyager 1 cameras use an estimate, because
-  too few Voyager 1 star frames could be pointed by their stars.
+  function as measured on its own star frames, including the blur of the archive's
+  resampling. A simulated star is round and has the same core at every brightness. A
+  real star is 1.2 to 1.7 times longer than wide, and its core grows wider as the star
+  gets brighter. The Voyager 1 cameras use an estimate, because too few Voyager 1 star
+  frames could be pointed by their stars.
 * PDS4 bundles are not generated.
 
 References

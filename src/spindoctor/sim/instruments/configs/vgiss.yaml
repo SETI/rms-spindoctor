@@ -387,10 +387,11 @@ vgiss_2_nac:
 
   psf:
     # Fitted 2026-11-28 (#1259) to 12 images of 6 stars on 6 RAW Pleiades frames
-    # at 0.96 and 1.44 s, peaks 15 to 100 DN, and carried to GEOMED pixels (1.165
-    # per raw pixel); r0 and n are held, the wing being undetermined.  The Voyager
-    # ISS chapter of the developer guide gives the fit and its limits.
-    kernel: {sigma_v: 0.815, sigma_u: 0.815, w: 0.095, r0: 2.330, n: 3.0}
+    # at 0.96 and 1.44 s, peaks 15 to 100 DN, with r0 2 raw px and n 3 held (no
+    # wing form of a grid fits better).  Carried to GEOMED pixels with the archive's
+    # resample folded in: stretched 1.165 per raw pixel and blurred by its bilinear
+    # interpolation.  The Voyager ISS chapter of the developer guide gives the fit.
+    kernel: {sigma_v: 0.946, sigma_u: 0.946, w: 0.093, r0: 2.330, n: 3.0}
     truncation_px: 16
 
   # The residual geometric distortion left after the navigator's distortion
@@ -567,10 +568,11 @@ vgiss_2_wac:
 
   psf:
     # Fitted 2026-11-28 (#1259) to 215 images of 57 stars on 43 RAW frames at
-    # 0.48 to 15.36 s, peaks 15 to 100 DN, and carried to GEOMED pixels (1.172 per
-    # raw pixel); r0 and n are held, the core and wing being degenerate.  The
-    # Voyager ISS chapter of the developer guide gives the fit and its limits.
-    kernel: {sigma_v: 0.864, sigma_u: 0.864, w: 0.451, r0: 2.344, n: 3.0}
+    # 0.48 to 15.36 s, peaks 15 to 100 DN, with r0 2 raw px and n 5 held, the best
+    # wing form of a grid.  Carried to GEOMED pixels with the archive's resample
+    # folded in: stretched 1.172 per raw pixel and blurred by its bilinear
+    # interpolation.  The Voyager ISS chapter of the developer guide gives the fit.
+    kernel: {sigma_v: 0.948, sigma_u: 0.948, w: 0.649, r0: 2.344, n: 5.0}
     truncation_px: 16
 
   # The residual geometric distortion left after the navigator's distortion
