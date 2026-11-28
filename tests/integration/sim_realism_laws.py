@@ -17,13 +17,14 @@ exponent, and the twin takes it from a straight line fitted to the real discs' o
 exponents against phase (:func:`minnaert_twin_k`), so that law is the best one
 Minnaert's form allows.
 
-**The pairing.**  The real disc's fits count at most 60,000 of its pixels, and the
-twin's fit counts the same pixels, less any its own sphere's geometry leaves out and any
-the twin reads at its camera's ceiling (:func:`twin_ceiling_if`).  When the twin leaves
-some out, the real disc is fitted again over the pixels both counted, and that fit is
-the one its twin is compared with.  So a real disc that lost pixels to its terrain cap,
-a nearer body, the rings, a shadow, or clipping has a twin fitted over the same part of
-the disc, and each pair's two fits read exactly the same pixels.  A twin whose disc is
+**The pairing.**  The real disc's fits count at most 60,000 of its pixels, and every
+twin's fit counts the same pixels, less any the twins' sphere geometry leaves out and
+any that any one of the twins reads at its camera's ceiling (:func:`twin_ceiling_if`).
+When the twins leave some out, the real disc is fitted again over the pixels they all
+counted, and that fit is the one every twin is compared with.  So a real disc that lost
+pixels to its terrain cap, a nearer body, the rings, a shadow, or clipping has twins
+fitted over the same part of the disc, every fit of the disc reads exactly the same
+pixels, and the laws are compared over the same part of each disc.  A twin whose disc is
 clipped as a real disc would be (at least 1% of its interior at the ceiling) does not
 give a limb gradient peak, because its limb rises to a plateau.
 
@@ -106,9 +107,7 @@ __all__ = [
     'StudyFrame',
     'TwinDisc',
     'compare_disc_profiles',
-    'crop_box',
     'crop_image',
-    'decimate',
     'law_comparison',
     'minnaert_line',
     'minnaert_twin_k',
@@ -133,12 +132,8 @@ MIN_BIN_DISCS = 3
 # Bounds on the exponent the Minnaert twins take from the fitted line.
 _MINNAERT_K_RANGE = (0.2, 1.5)
 
-# At most this many pixels of a disc are kept for the fits, every n-th pixel.
-_MAX_KEPT_PIXELS = 60_000
-
 # The contact-sheet crops are block-averaged to at most this many pixels on a side.
 _CROP_PX = 160
-_CROP_MARGIN_PX = 8
 
 _MAD_TO_SIGMA = 1.4826
 
@@ -299,8 +294,8 @@ class TwinDisc:
         minnaert_k: The exponent of a Minnaert twin, else None.
         k: Minnaert's exponent fitted to the twin's counted pixels, or None.
         real_k: Minnaert's exponent fitted to the real disc over the same pixels, or
-            None.  It is the real disc's own exponent when the twin counted every pixel
-            the real fits did.
+            None; every twin of the disc shares it.  It is the real disc's own exponent
+            when the twins counted every pixel the real fits did.
         profile_residual: The residual between the real and the twin's equator
             profiles over those pixels, or None.
         limb_peak: The twin's limb gradient-peak offset, when the real frame's was
@@ -310,7 +305,7 @@ class TwinDisc:
         crop: The twin's image over the real disc's crop bounds, block-averaged the same
             way.
         clipped_px: How many of the real fits' pixels the twin reads at its camera's
-            ceiling; they are left out of its fit.
+            ceiling; they are left out of the fit of every twin of the disc.
     """
 
     law: str
@@ -494,43 +489,6 @@ def crop_image(image: NDArrayFloatType, box: tuple[int, int, int, int]) -> NDArr
     return means.astype(np.float32)
 
 
-def crop_box(on_body: NDArrayBoolType) -> tuple[int, int, int, int]:
-    """The bounding box of a body's pixels, with a margin, inside the image.
-
-    Parameters:
-        on_body: Which pixels the body covers.
-
-    Returns:
-        The box as ``(v0, v1, u0, u1)``.
-    """
-    rows, cols = np.nonzero(on_body)
-    shape = on_body.shape
-    return (
-        max(int(rows.min()) - _CROP_MARGIN_PX, 0),
-        min(int(rows.max()) + _CROP_MARGIN_PX + 1, shape[0]),
-        max(int(cols.min()) - _CROP_MARGIN_PX, 0),
-        min(int(cols.max()) + _CROP_MARGIN_PX + 1, shape[1]),
-    )
-
-
-def decimate(mask: NDArrayBoolType) -> NDArrayBoolType:
-    """Keep every n-th selected pixel so that at most 60,000 remain.
-
-    Parameters:
-        mask: The selected pixels.
-
-    Returns:
-        The pixels kept.
-    """
-    count = int(mask.sum())
-    if count <= _MAX_KEPT_PIXELS:
-        return mask
-    step = math.ceil(count / _MAX_KEPT_PIXELS)
-    flat = np.zeros(mask.size, dtype=bool)
-    flat[np.flatnonzero(mask)[::step]] = True
-    return flat.reshape(mask.shape)
-
-
 def minnaert_line(discs: Iterable[RealDisc]) -> tuple[float, float]:
     """A straight line through the real discs' Minnaert exponents against phase.
 
@@ -626,8 +584,110 @@ def _disc_clipped(on_body: NDArrayBoolType, at_ceiling: NDArrayBoolType) -> bool
     return bool(interior.any()) and float(np.mean(at_ceiling[interior])) >= MIN_CLIPPED_FRACTION
 
 
-def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> TwinDisc:
-    """Render and measure one real disc's twin under one law."""
+@dataclass(frozen=True)
+class _TwinRender:
+    """One law's rendered twin of a real disc, before its fit.
+
+    Parameters:
+        law: The twin's law.
+        normal_albedo: The albedo measured from the real disc against that law.
+        data: The twin's image.
+        at_ceiling: Which of its pixels read at its camera's ceiling.
+        limb_peak: Its limb gradient-peak offset, or None.
+        limb_peak_refusal: Why its limb gave no offset when one was asked for, else None.
+    """
+
+    law: str
+    normal_albedo: float | None
+    data: NDArrayFloatType
+    at_ceiling: NDArrayBoolType
+    limb_peak: float | None
+    limb_peak_refusal: str | None
+
+
+def _twins(
+    disc: RealDisc, laws: Iterable[str], *, minnaert_k: float, limb_peak: bool
+) -> dict[str, TwinDisc]:
+    """Render one real disc's twin under each law and fit every one over the same pixels.
+
+    The twins and the real disc are all fitted over the real fits' own pixels, less any
+    the twins' sphere leaves out and any that any of the twins reads at its camera's
+    ceiling.  When that leaves some out, the real disc is fitted again over the rest.
+    So every law is compared with the real disc over the same part of it, and a law
+    whose twin clips the pixels it matches worst does not shed them from its fit.
+
+    Parameters:
+        disc: The real disc.
+        laws: The laws to render twins under.
+        minnaert_k: The exponent of a Minnaert twin.
+        limb_peak: Whether to measure each twin's limb gradient peak.
+
+    Returns:
+        Each law's twin, keyed by law.
+    """
+    radius = disc.diameter_px / 2.0
+    on_body, mu0, mu = _sphere_cosines(
+        disc.frame.frame_shape_vu,
+        disc.center_vu,
+        radius,
+        illumination_deg=disc.illumination_deg,
+        phase_deg=disc.phase_deg,
+    )
+    renders = []
+    for law in laws:
+        renders.append(
+            _render_twin(disc, law, minnaert_k=minnaert_k, limb_peak=limb_peak, on_body=on_body)
+        )
+        release_transient_memory()
+    usable = np.array(disc.selection, dtype=bool)
+    for render in renders:
+        usable &= np.isfinite(render.data) & (render.data > 0.0) & ~render.at_ceiling
+    counted = select_disc_pixels(on_body, mu0, mu, usable=usable)
+    phase_rad = math.radians(disc.phase_deg)
+    shared = counted[disc.selection]
+    if bool(shared.all()):
+        real_k: float | None = disc.minnaert.k
+        real_profile = disc.profile
+    else:
+        intensity, real_mu0, real_mu = disc.intensity[shared], disc.mu0[shared], disc.mu[shared]
+        real_fit = fit_minnaert(intensity, real_mu0, real_mu)
+        real_k = None if real_fit is None else real_fit.k
+        real_profile = equator_profile(intensity, real_mu0, real_mu, phase_rad)
+    twins: dict[str, TwinDisc] = {}
+    for render in renders:
+        values = render.data[counted]
+        fit = fit_minnaert(values, mu0[counted], mu[counted])
+        twin_profile = equator_profile(values, mu0[counted], mu[counted], phase_rad)
+        twins[render.law] = TwinDisc(
+            law=render.law,
+            normal_albedo=render.normal_albedo,
+            minnaert_k=minnaert_k if render.law == 'minnaert' else None,
+            k=None if fit is None else fit.k,
+            real_k=real_k,
+            profile_residual=profile_residual(real_profile, twin_profile),
+            limb_peak=render.limb_peak,
+            crop=crop_image(render.data, disc.crop_bounds),
+            clipped_px=int(np.count_nonzero(render.at_ceiling & disc.selection)),
+            limb_peak_refusal=render.limb_peak_refusal,
+        )
+    return twins
+
+
+def _render_twin(
+    disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool, on_body: NDArrayBoolType
+) -> _TwinRender:
+    """Render one real disc's twin under one law and measure its limb.
+
+    Parameters:
+        disc: The real disc.
+        law: The twin's law.
+        minnaert_k: The exponent of a Minnaert twin.
+        limb_peak: Whether to measure the twin's limb gradient peak.
+        on_body: The twin's sphere's pixels.
+
+    Returns:
+        The rendered twin.
+    """
     frame = disc.frame
     phase_rad = math.radians(disc.phase_deg)
     albedo = disc_normal_albedo(
@@ -663,30 +723,7 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
     validate_sim_params(scene)
     obs = ObsSim.from_file(f'/tmp/sim_realism_law_{frame.image_id}.yaml', sim_params=scene)
     data = np.asarray(obs.data, dtype=np.float64)
-    on_body, mu0, mu = _sphere_cosines(
-        data.shape,
-        disc.center_vu,
-        radius,
-        illumination_deg=disc.illumination_deg,
-        phase_deg=disc.phase_deg,
-    )
-    # The twin counts the real fits' own pixels, less any its sphere leaves out and any
-    # it reads at its camera's ceiling; when it leaves some out, the real disc is fitted
-    # again over the rest, so both fits of the pair read exactly the same pixels.
     at_ceiling = data >= twin_ceiling_if(scene)
-    usable = np.isfinite(data) & (data > 0.0) & ~at_ceiling & disc.selection
-    counted = select_disc_pixels(on_body, mu0, mu, usable=usable)
-    fit = fit_minnaert(data[counted], mu0[counted], mu[counted])
-    twin_profile = equator_profile(data[counted], mu0[counted], mu[counted], phase_rad)
-    shared = counted[disc.selection]
-    if bool(shared.all()):
-        real_k: float | None = disc.minnaert.k
-        real_profile = disc.profile
-    else:
-        intensity, real_mu0, real_mu = disc.intensity[shared], disc.mu0[shared], disc.mu[shared]
-        real_fit = fit_minnaert(intensity, real_mu0, real_mu)
-        real_k = None if real_fit is None else real_fit.k
-        real_profile = equator_profile(intensity, real_mu0, real_mu, phase_rad)
     peak: float | None = None
     refusal: str | None = None
     if limb_peak and disc.limb_peak:
@@ -696,16 +733,12 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
             peak, refusal = _twin_limb_peak(
                 obs, scene, disc.limb_peak[0], directions_deg=disc.limb_directions_deg
             )
-    return TwinDisc(
+    return _TwinRender(
         law=law,
         normal_albedo=albedo,
-        minnaert_k=minnaert_k if law == 'minnaert' else None,
-        k=None if fit is None else fit.k,
-        real_k=real_k,
-        profile_residual=profile_residual(real_profile, twin_profile),
+        data=data,
+        at_ceiling=at_ceiling,
         limb_peak=peak,
-        crop=crop_image(data, disc.crop_bounds),
-        clipped_px=int(np.count_nonzero(at_ceiling & disc.selection)),
         limb_peak_refusal=refusal,
     )
 
@@ -892,10 +925,7 @@ def run_law_study(inputs: LawStudyInputs, *, laws: tuple[str, ...] = STUDY_LAWS)
     rows: list[DiscRow] = []
     for disc in inputs.discs:
         k_line = minnaert_twin_k(k0, k1, disc.phase_deg)
-        twins = {}
-        for law in laws:
-            twins[law] = _twin(disc, law, minnaert_k=k_line, limb_peak=disc.limb_peak is not None)
-            release_transient_memory()
+        twins = _twins(disc, laws, minnaert_k=k_line, limb_peak=disc.limb_peak is not None)
         rows.append(DiscRow(disc=disc, twins=twins))
     law_bins: dict[str, dict[str, LawBin]] = {}
     body_bins: dict[str, dict[str, LawBin]] = {}

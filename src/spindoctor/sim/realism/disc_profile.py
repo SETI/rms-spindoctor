@@ -186,14 +186,17 @@ def _robust_line(
     residual = target[keep] - np.sum(design[keep] * coef, axis=1)
     dof = max(int(keep.sum()) - design.shape[1], 1)
     variance = float(np.sum(residual**2)) / dof
-    kept = design[keep]
-    # The normal matrix is summed from elementwise products because the simulator
-    # package admits no NumPy matrix product (its guard test enforces it).  The solves
-    # above and the inverse below still go through LAPACK, so the fits' last bits may
-    # differ between CPUs; they feed only the realism record, which rounds them to 6
-    # significant digits, and never a render.
-    normal = np.sum(kept[:, :, np.newaxis] * kept[:, np.newaxis, :], axis=0)
-    covariance = variance * np.linalg.pinv(normal)
+    # The covariance is variance * (A^T A)^-1 for the kept design A, taken from A's own
+    # singular values, s_i^-2 v_i v_i^T summed, so a narrow spread in the design keeps
+    # its condition number instead of squaring it as the normal matrix would.  The rank
+    # check above leaves every singular value above the solve's own cutoff.  The sum is
+    # of elementwise products because the simulator package admits no NumPy matrix
+    # product (its guard test enforces it).  The solves and the decomposition still go
+    # through LAPACK, so the fits' last bits may differ between CPUs; they feed only the
+    # realism record, and never a render.
+    _, singular, vt = np.linalg.svd(design[keep], full_matrices=False)
+    outer = vt[:, :, np.newaxis] * vt[:, np.newaxis, :]
+    covariance = variance * np.sum(outer / (singular**2)[:, np.newaxis, np.newaxis], axis=0)
     return coef, covariance, keep
 
 

@@ -684,7 +684,8 @@ def extract_feature_samples(
             )
             widths = [profile_rise_width(p, spacing_px=_EDGE_SPACING_PX) for p in profiles]
             meta = model_metadata.get(feature.source_model, {})
-            phase = float(meta.get('phase_angle_deg') or float('nan'))
+            phase_value = meta.get('phase_angle_deg')
+            phase = float('nan') if phase_value is None else float(phase_value)
             diameter = float(meta.get('predicted_diameter_px') or float('nan'))
             if not np.isfinite(diameter):
                 # Fallback for a model without diameter metadata: the

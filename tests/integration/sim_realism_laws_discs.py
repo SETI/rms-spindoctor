@@ -62,9 +62,7 @@ from tests.integration.sim_realism_laws import (
     LawStudyInputs,
     RealDisc,
     StudyFrame,
-    crop_box,
     crop_image,
-    decimate,
 )
 from tests.integration.sim_realism_limb_peak import (
     LimbOrientation,
@@ -80,6 +78,8 @@ __all__ = [
     'box_in_fov_at_offset',
     'cap_lit_area_px',
     'collect_real_discs',
+    'crop_box',
+    'decimate',
     'disc_lit_area_px',
     'foreign_pixels',
     'hidden_pixels',
@@ -96,6 +96,12 @@ MIN_LIT_FRACTION = 0.25
 
 A strip along the limb alone cannot tell the laws apart.
 """
+
+# At most this many pixels of a disc are kept for the fits, every n-th pixel.
+_MAX_KEPT_PIXELS = 60_000
+
+# The margin of a disc's contact-sheet crop around its pixels.
+_CROP_MARGIN_PX = 8
 
 # The step of the latitude-longitude grid a terrain cap's lit area is summed over.
 _CAP_GRID_STEP_DEG = 0.5
@@ -154,6 +160,43 @@ def collect_real_discs(
             full_scale=full_scale,
             hidden=hidden_pixels(backplane, body, in_view, planet=planet),
         )
+
+
+def crop_box(on_body: NDArrayBoolType) -> tuple[int, int, int, int]:
+    """The bounding box of a body's pixels, with a margin, inside the image.
+
+    Parameters:
+        on_body: Which pixels the body covers.
+
+    Returns:
+        The box as ``(v0, v1, u0, u1)``.
+    """
+    rows, cols = np.nonzero(on_body)
+    shape = on_body.shape
+    return (
+        max(int(rows.min()) - _CROP_MARGIN_PX, 0),
+        min(int(rows.max()) + _CROP_MARGIN_PX + 1, shape[0]),
+        max(int(cols.min()) - _CROP_MARGIN_PX, 0),
+        min(int(cols.max()) + _CROP_MARGIN_PX + 1, shape[1]),
+    )
+
+
+def decimate(mask: NDArrayBoolType) -> NDArrayBoolType:
+    """Keep every n-th selected pixel so that at most 60,000 remain.
+
+    Parameters:
+        mask: The selected pixels.
+
+    Returns:
+        The pixels kept.
+    """
+    count = int(mask.sum())
+    if count <= _MAX_KEPT_PIXELS:
+        return mask
+    step = math.ceil(count / _MAX_KEPT_PIXELS)
+    flat = np.zeros(mask.size, dtype=bool)
+    flat[np.flatnonzero(mask)[::step]] = True
+    return flat.reshape(mask.shape)
 
 
 def bodies_in_view(obs: Any, offset_vu: tuple[float, float]) -> list[tuple[str, Mapping[str, Any]]]:

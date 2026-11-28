@@ -145,6 +145,24 @@ def test_the_albedo_leaves_out_the_pixels_something_hides() -> None:
     assert body.normal_albedo == pytest.approx(0.6, rel=1e-12)
 
 
+def test_full_scale_pixels_that_something_hides_do_not_clip_the_disc() -> None:
+    """A saturated body over more than half of the disc leaves the disc unclipped."""
+    frame = _real_frame(0.6)
+    in_front = np.zeros((_SIZE, _SIZE), dtype=bool)
+    in_front[:52, :] = True
+    body = real_body(
+        frame,
+        [],
+        _METADATA,
+        backplane=frame.bp,
+        calibrated=True,
+        clipped=in_front,
+        hidden=lambda _name: in_front,
+    )
+    assert body is not None
+    assert body.disc_clipped is False
+
+
 def test_the_offset_backplane_applies_the_offset_unrounded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -269,7 +269,8 @@ def directions_near(
 
     A direction is near when a used direction lies within two of the used directions'
     median spacings of it, so the matched limb leaves out the same stretches the real
-    limb did.
+    limb did.  The widest gap around the circle is the stretch the real limb left
+    out, so the median is taken over the other spacings.
 
     Parameters:
         directions_deg: ``(N,)`` directions to test, in degrees.
@@ -284,7 +285,7 @@ def directions_near(
     if len(used_deg) < 2:
         return np.zeros(query.shape, dtype=bool)
     used = np.sort(np.asarray(used_deg, dtype=np.float64) % 360.0)
-    spacing = np.diff(np.concatenate([used, used[:1] + 360.0]))
+    spacing = np.sort(np.diff(np.concatenate([used, used[:1] + 360.0])))[:-1]
     tolerance = _DIRECTION_MATCH_SPACINGS * float(np.median(spacing))
     gap = np.abs(((query[:, np.newaxis] - used[np.newaxis, :]) + 180.0) % 360.0 - 180.0)
     return np.asarray(gap.min(axis=1) <= tolerance, dtype=bool)

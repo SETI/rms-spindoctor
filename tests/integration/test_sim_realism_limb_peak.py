@@ -24,6 +24,7 @@ from tests.integration.sim_realism_limb_peak import (
     LimbPeak,
     LimbSelection,
     compare_limb_peaks,
+    directions_near,
     limb_peak_offset,
     limb_peak_refusals,
     matched_orientation,
@@ -524,6 +525,18 @@ def _record_bin(within: bool | None) -> dict[str, Any]:
     }
 
 
+def test_two_used_directions_are_near_only_their_own_neighborhood() -> None:
+    """Directions at 0 and 1 deg match a direction 179 deg from them as far."""
+    near = directions_near(np.array([180.0]), (0.0, 1.0))
+    assert bool(near[0]) is False
+
+
+def test_two_used_directions_either_side_of_zero_are_spaced_across_it() -> None:
+    """Directions at 359 and 1 deg are 2 deg apart, so a direction at 10 deg is far."""
+    near = directions_near(np.array([10.0]), (359.0, 1.0))
+    assert bool(near[0]) is False
+
+
 def test_a_record_bin_outside_its_band_is_a_failure() -> None:
     """Only the bin whose verdict is False is reported."""
     record = {
@@ -544,10 +557,14 @@ def test_a_record_bin_outside_its_band_is_a_failure() -> None:
     }
 
 
-@pytest.mark.skipif(
-    not record_has_limb_peaks(_RECORD),
-    reason='the realism record predates the limb gradient-peak comparison',
-)
+def test_the_record_holds_the_limb_peak_comparison() -> None:
+    """The realism record carries the limb gradient-peak comparison."""
+    assert record_has_limb_peaks(_RECORD), (
+        f'The realism record made at {made_at(_RECORD)} lacks the limb gradient-peak '
+        f'comparison.\n{REGENERATE_HINT}'
+    )
+
+
 def test_the_recorded_limb_peaks_lie_within_their_bands() -> None:
     """In every bin with a verdict, the matched median lies within the real band.
 

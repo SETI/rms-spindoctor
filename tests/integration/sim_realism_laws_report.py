@@ -76,6 +76,17 @@ def _round(value: float | None, digits: int = 6) -> float | None:
     return float(f'{float(value):.{digits}g}')
 
 
+def _exact(value: float | None) -> float | None:
+    """A JSON-safe float at full precision, or None.
+
+    The verdict inputs keep every digit, so a reader that works a verdict out again
+    from them reaches the one the record states, even at a band's edge.
+    """
+    if value is None or not math.isfinite(value):
+        return None
+    return float(value)
+
+
 def _law_bin_entry(entry: LawBin) -> dict[str, Any]:
     """One law's statistics over a group of discs, as the record holds them."""
     return {
@@ -102,8 +113,8 @@ def _comparison_entry(entry: LawComparisonBin) -> dict[str, Any]:
     """One phase bin's law comparison, as the record holds it."""
     return {
         'n': entry.n,
-        'band_k': _round(entry.band_k),
-        'agreement': {law: _round(v) for law, v in sorted(entry.agreement.items())},
+        'band_k': _exact(entry.band_k),
+        'agreement': {law: _exact(v) for law, v in sorted(entry.agreement.items())},
         'separates': dict(sorted(entry.separates.items())),
         'default_best': entry.default_best,
     }
@@ -158,9 +169,9 @@ def disc_profile_entries(bins: dict[str, DiscProfileBin]) -> dict[str, Any]:
             'n': entry.n,
             'real_median_k': _round(entry.real_median_k),
             'sim_median_k': _round(entry.sim_median_k),
-            'median_delta_k': _round(entry.median_delta_k),
+            'median_delta_k': _exact(entry.median_delta_k),
             'delta_scatter_k': _round(entry.delta_scatter_k),
-            'band_k': _round(entry.band_k),
+            'band_k': _exact(entry.band_k),
             'within_band': entry.within_band,
         }
         for label, entry in sorted(bins.items())
@@ -546,13 +557,22 @@ def record_law_comparison_problems(record: dict[str, Any]) -> list[str]:
         better with the real discs.
 
     Raises:
-        ValueError: If a recorded separation differs from the one the numbers give.
+        ValueError: If a bin's agreements leave out the default law or name no other
+            law, if its separations do not name exactly the other laws, or if a recorded
+            separation differs from the one the numbers give.
     """
     study = record.get('law_study', {})
     default = study.get('default_law', DEFAULT_LAW)
     problems: list[str] = []
     for label, entry in sorted(study.get('comparison', {}).items()):
         agreement = entry['agreement']
+        others = sorted(set(agreement) - {default})
+        if default not in agreement or not others or sorted(entry['separates']) != others:
+            raise ValueError(
+                f'{label}: the record compares the laws {sorted(agreement)} with the default '
+                f'{default!r} and says whether {sorted(entry["separates"])} separate from it; '
+                'each law other than the default needs one such entry'
+            )
         for law, recorded in sorted(entry['separates'].items()):
             gap = abs(agreement[law] - agreement[default])
             apart = bool(gap > entry['band_k'])

@@ -7,13 +7,13 @@ more facts about that body from the real frame.
 **Whether its disc is clipped.**  A disc that reaches the camera's full scale reads one
 flat level over its brightest part, so its I/F is the clip level and its limb rises to a
 plateau.  :func:`disc_is_clipped` calls a disc clipped when at least 1% of its interior
-pixels read the full scale.  On the Cassini NAC cohort the clipped discs have 51% to 93%
-of their interior pixels at the full scale and the rest have at most 0.007%, so the
-choice of 1% does not decide any frame.  Which pixels read the full scale comes from the
-raw product: on a raw-DN cohort it is the frame itself, and on a calibrated cohort it is
-the raw product a mission's frame reader opens beside the calibrated one
-(:class:`~tests.integration.sim_realism_support.FrameSettings`).  A calibrated cohort
-whose mission has no such reader is taken as unclipped.
+pixels that nothing else hides read the full scale.  On the Cassini NAC cohort the
+clipped discs have 51% to 93% of their interior pixels at the full scale and the rest
+have at most 0.007%, so the choice of 1% does not decide any frame.  Which pixels read
+the full scale comes from the raw product: on a raw-DN cohort it is the frame itself,
+and on a calibrated cohort it is the raw product a mission's frame reader opens beside
+the calibrated one (:class:`~tests.integration.sim_realism_support.FrameSettings`).  A
+calibrated cohort whose mission has no such reader is taken as unclipped.
 
 **Its normal albedo.**  A simulated body is white unless its scene gives it a normal
 albedo.  A white body in a matched frame, exposed as long as the real frame, can
@@ -185,19 +185,27 @@ def _disc_pixels(
     return rows, cols
 
 
-def disc_is_clipped(backplane: Any, body_name: str, *, clipped: NDArrayBoolType) -> bool:
+def disc_is_clipped(
+    backplane: Any,
+    body_name: str,
+    *,
+    clipped: NDArrayBoolType,
+    hidden: NDArrayBoolType | None = None,
+) -> bool:
     """Whether a body's disc reaches the camera's full scale.
 
     Parameters:
         backplane: The frame's offset backplane (:func:`offset_backplane`).
         body_name: The body, as SPICE knows it.
         clipped: Which of the image's pixels read the full scale, in the image's shape.
+        hidden: The pixels of the disc that something else hides, which are left out
+            (:func:`~tests.integration.sim_realism_laws_discs.hidden_pixels`), or None.
 
     Returns:
-        True when at least 1% of the disc's interior pixels read the full scale; False
-        when fewer do or none of the disc's interior lies on the image.
+        True when at least 1% of the disc's interior pixels that nothing hides read the
+        full scale; False when fewer do or none of them lies on the image.
     """
-    rows, cols = _disc_pixels(backplane, body_name)
+    rows, cols = _disc_pixels(backplane, body_name, hidden=hidden)
     if rows.size == 0:
         return False
     fraction = float(np.mean(np.asarray(clipped, dtype=bool)[rows, cols]))
@@ -261,7 +269,7 @@ def real_body(
         clipped: Which of the image's pixels read the camera's full scale, or None when
             that is not known.
         hidden: Gives the pixels of a body's disc that something else hides, which the
-            albedo leaves out, or None to leave none out.
+            clipping test and the albedo leave out, or None to leave none out.
 
     Returns:
         The largest body's facts, or None when no body model states both a diameter and
@@ -270,15 +278,14 @@ def real_body(
     name, diameter, phase = largest_body(model_metadata)
     if name is None or diameter is None or phase is None:
         return None
-    disc_clipped = clipped is not None and disc_is_clipped(backplane, name, clipped=clipped)
+    hidden_px = None if hidden is None else hidden(name)
+    disc_clipped = clipped is not None and disc_is_clipped(
+        backplane, name, clipped=clipped, hidden=hidden_px
+    )
     albedo = None
     if calibrated and not disc_clipped:
         albedo = real_normal_albedo(
-            obs.data,
-            backplane,
-            name,
-            phase_angle_deg=phase,
-            hidden=None if hidden is None else hidden(name),
+            obs.data, backplane, name, phase_angle_deg=phase, hidden=hidden_px
         )
     model = f'body:{name}'
     limb_emitted = any(

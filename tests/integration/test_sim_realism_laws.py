@@ -37,6 +37,7 @@ from tests.integration.sim_realism_laws import (
     DEFAULT_LAW,
     DiscProfileBin,
     DiscRow,
+    LawComparisonBin,
     LawStudyInputs,
     RealDisc,
     StudyFrame,
@@ -57,6 +58,7 @@ from tests.integration.sim_realism_laws_discs import (
     lit_share,
 )
 from tests.integration.sim_realism_laws_report import (
+    disc_profile_entries,
     law_study_summary,
     record_disc_profile_failures,
     record_disc_profile_verdicts,
@@ -388,7 +390,7 @@ def test_a_cap_leaves_out_the_points_beyond_its_radius() -> None:
 def test_a_large_disc_keeps_at_most_sixty_thousand_pixels() -> None:
     """Every third pixel of a 160,000-pixel selection is kept, at most 60,000 of them."""
     mask = np.ones((400, 400), dtype=bool)
-    kept = int(sim_realism_laws.decimate(mask).sum())
+    kept = int(sim_realism_laws_discs.decimate(mask).sum())
     assert kept == 53_334
 
 
@@ -618,9 +620,9 @@ def _sphere_disc(law: str, *, albedo: float = 0.05, **kwargs: float) -> RealDisc
 @pytest.fixture(scope='module')
 def lambert_twin() -> TwinDisc:
     """The rendered Lambert twin of a Lambert disc whose exponent is recorded as 1."""
-    return sim_realism_laws._twin(
-        _sphere_disc('lambert'), 'lambert', minnaert_k=0.6, limb_peak=False
-    )
+    return sim_realism_laws._twins(
+        _sphere_disc('lambert'), ('lambert',), minnaert_k=0.6, limb_peak=False
+    )['lambert']
 
 
 def test_a_lambert_twin_fits_the_exponent_one(lambert_twin: TwinDisc) -> None:
@@ -641,7 +643,7 @@ def bright_twin() -> TwinDisc:
     """
     disc = _sphere_disc('lambert', albedo=3.0)
     disc.limb_peak = ('limb_peak_p0_r1', 0.0)
-    return sim_realism_laws._twin(disc, 'lambert', minnaert_k=0.6, limb_peak=True)
+    return sim_realism_laws._twins(disc, ('lambert',), minnaert_k=0.6, limb_peak=True)['lambert']
 
 
 def test_a_twin_counts_its_pixels_at_the_ceiling(bright_twin: TwinDisc) -> None:
@@ -657,6 +659,11 @@ def test_a_twin_leaves_its_pixels_at_the_ceiling_out_of_its_fit(bright_twin: Twi
 def test_a_clipped_twin_gives_no_limb_peak(bright_twin: TwinDisc) -> None:
     """A twin whose disc is clipped, by the test a real disc meets, has no limb peak."""
     assert bright_twin.limb_peak is None
+
+
+def test_a_clipped_twin_gives_the_clipping_as_its_refusal(bright_twin: TwinDisc) -> None:
+    """The refusal of a clipped twin's limb says the clipping caused it."""
+    assert bright_twin.limb_peak_refusal == "its disc is clipped at the camera's ceiling"
 
 
 def test_a_twin_takes_its_albedo_from_the_real_disc_under_its_own_law(
@@ -680,9 +687,9 @@ def test_a_twin_is_cropped_to_the_real_discs_bounds(lambert_twin: TwinDisc) -> N
 
 def test_a_minnaert_twin_takes_the_exponent_it_is_given() -> None:
     """A rendered Minnaert twin fits the exponent it was rendered with."""
-    twin = sim_realism_laws._twin(
-        _sphere_disc('minnaert', minnaert_k=0.6), 'minnaert', minnaert_k=0.6, limb_peak=False
-    )
+    twin = sim_realism_laws._twins(
+        _sphere_disc('minnaert', minnaert_k=0.6), ('minnaert',), minnaert_k=0.6, limb_peak=False
+    )['minnaert']
     assert twin.k == pytest.approx(0.6, abs=0.03)
 
 
@@ -702,7 +709,7 @@ def test_a_twin_is_fitted_only_over_the_real_discs_pixels() -> None:
     first = np.zeros_like(disc.selection)
     first[rows[:50], cols[:50]] = True
     _keep_selected(disc, first)
-    twin = sim_realism_laws._twin(disc, 'lambert', minnaert_k=0.6, limb_peak=False)
+    twin = sim_realism_laws._twins(disc, ('lambert',), minnaert_k=0.6, limb_peak=False)['lambert']
     assert twin.k is None
 
 
@@ -725,8 +732,49 @@ def test_a_twin_that_leaves_out_real_pixels_pairs_with_the_real_disc_over_the_re
     disc.mu = mu[lit]
     disc.intensity = 0.05 * disc.mu0 * np.where(clear[lit], 1.0, 3.0)
     disc.minnaert = MinnaertFit(k=0.3, b0=0.05, k_sigma=0.01, n_pixels=int(lit.sum()))
-    twin = sim_realism_laws._twin(disc, 'lambert', minnaert_k=0.6, limb_peak=False)
+    twin = sim_realism_laws._twins(disc, ('lambert',), minnaert_k=0.6, limb_peak=False)['lambert']
     assert twin.real_k == pytest.approx(1.0, abs=1e-9)
+
+
+def test_a_pixel_one_twin_clips_is_left_out_of_every_twins_fit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every law's twin is fitted over the pixels all of the disc's twins keep.
+
+    The Lambert twin reads the brighter part of the disc at its ceiling, and there the
+    other twin falls off more steeply than Lambert's law, so only a fit that leaves out
+    the Lambert twin's clipped pixels gives the other twin the Lambert exponent 1.
+    """
+    phase = 30.0
+    on_body, mu0, mu = sim_realism_laws._sphere_cosines(
+        (256, 256), (128.0, 128.0), 60.0, illumination_deg=90.0, phase_deg=phase
+    )
+    lit = on_body & (mu0 > 0.0) & (mu > 0.0)
+    lambert = np.zeros(on_body.shape)
+    lambert[lit] = 0.05 * shade_surface(
+        mu0[lit], mu[lit], law='lambert', phase_angle=math.radians(phase)
+    )
+    bright = lit & (mu0 > 0.6)
+
+    def render(
+        disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool, on_body: NDArrayBoolType
+    ) -> Any:
+        steep = law == 'lommel_seeliger'
+        data = np.where(bright & steep, lambert * (mu0 / 0.6) ** 2, lambert)
+        return sim_realism_laws._TwinRender(
+            law=law,
+            normal_albedo=0.05,
+            data=data,
+            at_ceiling=bright & (law == 'lambert'),
+            limb_peak=None,
+            limb_peak_refusal=None,
+        )
+
+    monkeypatch.setattr(sim_realism_laws, '_render_twin', render)
+    twins = sim_realism_laws._twins(
+        _sphere_disc('lambert'), ('lambert', 'lommel_seeliger'), minnaert_k=0.6, limb_peak=False
+    )
+    assert twins['lommel_seeliger'].k == pytest.approx(1.0, abs=1e-6)
 
 
 def _record(
@@ -837,6 +885,49 @@ def test_a_recorded_separation_its_numbers_contradict_is_refused() -> None:
     record = _record(0.03, 0.05, True, agreement={'lunar_lambert': 0.2, 'lambert': 0.05})
     with pytest.raises(ValueError, match=r'separates from lunar_lambert is False, but'):
         record_law_comparison_problems(record)
+
+
+def test_a_comparison_that_leaves_out_a_laws_separation_is_refused() -> None:
+    """A bin that compares Lambert with the default but says nothing of it is refused."""
+    record = _record(0.03, 0.05, True, agreement={'lunar_lambert': 0.2, 'lambert': 0.05})
+    record['law_study']['comparison']['p0']['separates'] = {}
+    with pytest.raises(ValueError, match=r'each law other than the default needs one such'):
+        record_law_comparison_problems(record)
+
+
+def test_a_written_disc_profile_bin_just_outside_its_band_reads_back_outside() -> None:
+    """A median difference 3e-8 past the band is written as it is and read as outside."""
+    entry = DiscProfileBin(
+        n=4,
+        real_median_k=0.6,
+        sim_median_k=0.62000003,
+        median_delta_k=0.02000003,
+        delta_scatter_k=0.03,
+        band_k=0.02,
+        within_band=False,
+    )
+    record = {
+        'instruments': {'coiss_calib_nac': {'disc_profiles': disc_profile_entries({'p0': entry})}}
+    }
+    assert set(record_disc_profile_failures(record)) == {('coiss_calib_nac', 'p0')}
+
+
+def test_a_written_law_comparison_just_past_its_band_reads_back_separated() -> None:
+    """Agreements 3e-8 farther apart than the band are written as they are and separate."""
+    entry = LawComparisonBin(
+        n=4,
+        band_k=0.02,
+        agreement={'lunar_lambert': 0.02000003, 'lambert': 0.0},
+        separates={'lambert': True},
+        default_best=False,
+    )
+    record = {
+        'law_study': {
+            'default_law': 'lunar_lambert',
+            'comparison': {'p0': sim_realism_laws_report._comparison_entry(entry)},
+        }
+    }
+    assert len(record_law_comparison_problems(record)) == 1
 
 
 @pytest.fixture(scope='module')

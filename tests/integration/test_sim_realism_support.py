@@ -139,6 +139,21 @@ def test_a_matched_frame_takes_its_widths_near_the_real_widths_directions() -> N
     assert min(samples.limb_width_directions_deg) > 16.0
 
 
+def test_a_limb_at_zero_phase_gives_its_widths() -> None:
+    """A body whose phase is exactly 0 deg has its limb's widths binned."""
+    samples = extract_feature_samples(
+        _disc_image(),
+        [_limb_feature('body:MOON')],
+        {'body:MOON': {'phase_angle_deg': 0.0, 'predicted_diameter_px': 60.0}},
+        offset_vu=(0.0, 0.0),
+        extfov_margin_vu=(0, 0),
+        saturation_level=np.nan,
+        matched_model='body:MOON',
+        limb_selection=LimbSelection(_ORIENTATION),
+    )
+    assert len(samples.samples.get(_BIN, [])) == 90
+
+
 def test_a_width_from_a_body_the_matched_frame_lacks_is_left_out() -> None:
     """A second body's limb adds no widths when the matched frame renders only MOON."""
     alone = _widths([_limb_feature('body:MOON')])

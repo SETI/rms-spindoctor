@@ -138,6 +138,24 @@ def test_a_zero_blend_keeps_its_uncertainty(monkeypatch: pytest.MonkeyPatch) -> 
     assert fit.blend_sigma == pytest.approx(0.1)
 
 
+def test_a_narrow_spread_keeps_the_slopes_uncertainty() -> None:
+    """A design spread over 1e-9 gives the slope the variance a straight line's has.
+
+    Its normal matrix's condition number, about 1e19, is past the cutoff below which a
+    pseudo-inverse zeroes a direction, though the solve itself still fixes the slope.
+    """
+    rng = np.random.default_rng(5)
+    x = 1.0 + 1e-9 * rng.uniform(-1.0, 1.0, 1000)
+    target = 2.0 + 3.0 * x + rng.normal(0.0, 0.01, 1000)
+    result = disc_profile._robust_line(np.column_stack([np.ones_like(x), x]), target)
+    assert result is not None
+    coef, covariance, keep = result
+    residual = target[keep] - coef[0] - coef[1] * x[keep]
+    variance = float(np.sum(residual**2)) / (int(keep.sum()) - 2)
+    expected = variance / float(np.sum((x[keep] - np.mean(x[keep])) ** 2))
+    assert covariance[1, 1] == pytest.approx(expected, rel=1e-3)
+
+
 def test_pixels_near_the_edge_of_the_lit_region_are_left_out() -> None:
     """A lit pixel nearer the limb than the clearance does not count."""
     on_body, mu0, mu = _sphere()
