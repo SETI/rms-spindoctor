@@ -1002,7 +1002,7 @@ def test_body_blob_drops_a_blob_whose_lost_lines_move_its_centroid(
     disc_image: DiscImageFactory,
     make_nav_context: NavContextFactory,
 ) -> None:
-    """Lost lines across one side of the disc drop the blob, leaving no answer."""
+    """Lost lines across one side of the disc drop the blob, and the answer is spurious."""
     result = _navigate_blob_with_lost_lines(
         disc_image((200, 200), (100.0, 100.0), 20.0),
         make_nav_context,
