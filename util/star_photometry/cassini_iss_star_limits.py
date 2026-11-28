@@ -531,7 +531,7 @@ def measure(frame: FrameInput) -> dict[str, Any]:
     lut = read_lut(Path(os.environ['PDS3_HOLDINGS_DIR']) / LUT_PATH)
     data = raw.data_2d
     if data is None:
-        raise ValueError(f'{frame.extra["raw_path"]} holds no image data')
+        raise ValueError(f'{frame.extra["raw_path"]} has no image data')
     phot = decode_raw(data, str(frame.extra['conversion']), lut)
     if phot.shape != np.asarray(obs.data).shape:
         raise ValueError(
