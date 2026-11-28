@@ -759,9 +759,10 @@ When a new YAML knob is added:
 1. Pick the file whose section it belongs to (e.g. a new ``bodies`` key goes
    in ``config_040_bodies.yaml``). If no existing file fits, allocate a new
    numeric prefix per the layout table above.
-2. Declare the key as a field of its section's type in ``config/sections*.py``. The
-   loader parses the whole configuration, so a key the type lacks is refused at load
-   as unknown. A new top-level section also needs its own type, a field of
+2. Declare the key as a field of the type its section parses into: the section types
+   in ``config/sections*.py``, the logging types in ``config/logging_keys.py``, or a
+   technique's own tuning type in ``nav_technique``. The loader parses the whole
+   configuration, so a key the type lacks is refused at load as unknown. A new top-level section also needs its own type, a field of
    :class:`~spindoctor.config.sections.NavConfig`, and a ``Config`` property that
    returns it.
 3. Add the key with a sensible default and a one-line YAML comment that
