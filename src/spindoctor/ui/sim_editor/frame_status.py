@@ -51,12 +51,6 @@ class NavigatorFrameReading:
             frame is refused.
         max_overexposed_frac: The saturated share above which the frame is
             overexposed.
-        too_few_lines_read: Whether the marker share outside the unread lines is
-            within its limit and the share of lines read out is below
-            ``min_read_line_frac``, so that a missing-data refusal comes from the
-            lines.  A line is unread when every one of its pixels carries the marker.
-        min_read_line_frac: The share of lines read out below which the frame is
-            refused.
     """
 
     units: str
@@ -66,8 +60,6 @@ class NavigatorFrameReading:
     blank_max: float
     max_missing_frac: float
     max_overexposed_frac: float
-    too_few_lines_read: bool
-    min_read_line_frac: float
 
 
 def read_frame_as_navigator(
@@ -104,11 +96,6 @@ def read_frame_as_navigator(
         blank_max=thresholds.blank_max_dn,
         max_missing_frac=thresholds.max_missing_frac_clean,
         max_overexposed_frac=thresholds.max_saturation_frac_clean,
-        too_few_lines_read=(
-            statistics.scattered_missing_frac <= thresholds.max_missing_frac_clean
-            and statistics.read_line_frac < thresholds.min_read_line_frac
-        ),
-        min_read_line_frac=thresholds.min_read_line_frac,
     )
 
 
@@ -148,9 +135,9 @@ def frame_units_summary(image: NDArrayFloatType, inst_config: CameraBlock) -> st
     the navigator's classifier
     (see :func:`read_frame_as_navigator`) would not call the frame clean, it adds
     the reason, in the classifier's order: below the blank limit, over the
-    overexposed share, over ``max_missing_frac_clean`` outside the unread lines, or
-    under ``min_read_line_frac`` of the lines read out.  In the last two cases the
-    navigator refuses it as missing data.  Pass the frame the navigator reads, with
+    overexposed share, or over ``max_missing_frac_clean`` outside the unread lines,
+    in which case the navigator refuses it as missing data.  A line is unread when
+    every one of its pixels carries the marker.  Pass the frame the navigator reads, with
     the planted offset applied, for the verdict to match it.
 
     Parameters:
@@ -176,11 +163,6 @@ def frame_units_summary(image: NDArrayFloatType, inst_config: CameraBlock) -> st
         text += (
             f' (over {reading.max_overexposed_frac * 100:.0f}% saturated: '
             'the navigator classifies it overexposed)'
-        )
-    elif reading.image_class == 'mostly_missing_data' and reading.too_few_lines_read:
-        text += (
-            f' (under {reading.min_read_line_frac * 100:.0f}% of lines read out: '
-            'the navigator refuses it as missing data)'
         )
     elif reading.image_class == 'mostly_missing_data':
         text += (

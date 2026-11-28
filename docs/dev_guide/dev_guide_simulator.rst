@@ -929,8 +929,8 @@ classifier would not call that frame clean, the status bar says why, in the
 classifier's order (``read_frame_as_navigator`` in the same module, which calls the
 navigator's own decision in :mod:`spindoctor.support.image_class`):
 a peak below the blank limit first, then the overexposed share, then a marker
-share above ``max_missing_frac_clean`` outside the unread lines, then a share of lines
-read out below ``min_read_line_frac``. An empty ``coiss_calib_nac`` frame's sky
+share above ``max_missing_frac_clean`` outside the unread lines. An empty
+``coiss_calib_nac`` frame's sky
 residual is below the blank limit, so the navigator calls it blank; an empty
 ``vgiss`` frame's is above it. The display stretch is relative to the frame, so
 the units are otherwise invisible: a ``vgiss`` frame spanning about 0 to 1 looks

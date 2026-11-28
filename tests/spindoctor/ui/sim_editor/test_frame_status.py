@@ -109,7 +109,9 @@ def test_summary_names_the_unit_class(instrument: str, units: str) -> None:
 # Scenes whose navigated frame lands on each side of the classifier's gates.  The
 # small body at the edge leaves the frame only once its offset is applied, so the
 # preview is clean and the navigated frame blank; the lost lines put about 46%
-# of the vgiss disc frame at the marker; an empty vgiss frame reads its sky
+# of the vgiss disc frame at the marker as whole unread lines, which leave it clean,
+# while the downlink dropout scatters 40% of its pixels at the marker, which
+# refuses it; an empty vgiss frame reads its sky
 # residual, above the blank limit, while an empty calibrated Cassini frame's
 # residual is below it; and a raw sky at a raised marker is blank only because
 # the navigator fills marker pixels with 0 before it reads the peak.
@@ -118,6 +120,7 @@ _NAVIGATED_SCENES = {
     'coiss_calib_nac-disc': _disc_scene('coiss_calib_nac'),
     'vgiss-disc': _disc_scene('vgiss_1_nac'),
     'vgiss-disc-lost-lines': _with_lost_lines(_disc_scene('vgiss_1_nac'), 40.0),
+    'vgiss-disc-dropout': {**_disc_scene('vgiss_1_nac'), 'detector': {'missing_data_rate': 0.4}},
     'calib-offset-leaves-frame': _body_scene('coiss_calib_nac', 3.0, (0.0, 20.0), center_u=118.0),
     'vgiss-offset': _body_scene('vgiss_1_nac', 80.0, (3.0, -2.0), light=(18.0, 30.0)),
     'vgiss-empty': _empty_scene('vgiss_1_nac'),
@@ -148,7 +151,8 @@ def test_reading_matches_the_orchestrator_on_the_navigated_frame(name: str) -> N
     ('name', 'image_class'),
     [
         ('vgiss-disc', 'clean'),
-        ('vgiss-disc-lost-lines', 'mostly_missing_data'),
+        ('vgiss-disc-lost-lines', 'clean'),
+        ('vgiss-disc-dropout', 'mostly_missing_data'),
         ('calib-offset-leaves-frame', 'blank'),
         ('vgiss-offset', 'clean'),
         ('vgiss-empty', 'clean'),
@@ -271,15 +275,11 @@ class _InstConfigOnly:
         self.inst_config = inst_config
 
 
-def test_lowered_read_line_limit_from_the_scene_is_honored() -> None:
-    """A scene's min_read_line_frac override moves the summary's limit with the navigator's.
-
-    The lost lines are whole unread lines, so the read-out limit, and not
-    max_missing_frac_clean, is what lets the frame through.
-    """
+def test_raised_missing_limit_from_the_scene_is_honored() -> None:
+    """A scene's max_missing_frac_clean override moves the summary's limit with the navigator's."""
     params = {
-        **_NAVIGATED_SCENES['vgiss-disc-lost-lines'],
-        'instrument_config': {'image_quality_thresholds': {'min_read_line_frac': 0.30}},
+        **_NAVIGATED_SCENES['vgiss-disc-dropout'],
+        'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.70}},
     }
     img, _ = render_scene(params)
     inst_config = scene_camera_block(DEFAULT_CONFIG, params)
@@ -288,20 +288,18 @@ def test_lowered_read_line_limit_from_the_scene_is_honored() -> None:
     assert _orchestrator_class(params) == 'clean'
 
 
-def test_raised_read_line_limit_from_the_scene_is_honored() -> None:
-    """A raised min_read_line_frac refuses a frame with lost lines the default would accept.
-
-    The lost lines are whole unread lines, so they count against the share of lines read
-    out and not against max_missing_frac_clean.
-    """
+def test_lowered_missing_limit_from_the_scene_is_honored() -> None:
+    """A lowered max_missing_frac_clean refuses a frame the default would accept."""
     params = {
-        **_with_lost_lines(_NAVIGATED_SCENES['vgiss-offset'], 6.0),
-        'instrument_config': {'image_quality_thresholds': {'min_read_line_frac': 1.0}},
+        **_NAVIGATED_SCENES['vgiss-offset'],
+        'detector': {'missing_data_rate': 0.05},
+        'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.02}},
     }
     img, _ = render_scene(params)
     inst_config = scene_camera_block(DEFAULT_CONFIG, params)
-    expected = '(under 100% of lines read out: the navigator refuses it as missing data)'
-    assert expected in frame_units_summary(img, inst_config)
+    assert '(over 2%: the navigator refuses it as missing data)' in frame_units_summary(
+        img, inst_config
+    )
 
 
 @pytest.mark.parametrize(
@@ -366,13 +364,16 @@ def test_summary_omits_the_marker_when_no_pixel_carries_it() -> None:
 
 
 @pytest.mark.parametrize(
-    ('marker_rows', 'warns'),
+    ('marker_columns', 'warns'),
     [(20, False), (30, False), (31, True)],
     ids=['20pct', 'at-30pct-limit', '31pct'],
 )
-def test_summary_warns_only_above_the_missing_data_limit(marker_rows: int, warns: bool) -> None:
-    """The refusal warning starts strictly above the 30% the navigator accepts."""
-    img = np.full((100, 10), 0.5)
-    img[:marker_rows, :] = 0.0
+def test_summary_warns_only_above_the_missing_data_limit(marker_columns: int, warns: bool) -> None:
+    """The refusal warning starts strictly above the 30% the navigator accepts.
+
+    The marker fills columns, so every line keeps some read pixels.
+    """
+    img = np.full((10, 100), 0.5)
+    img[:, :marker_columns] = 0.0
     summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss_1_nac'))
     assert ('refuses' in summary) == warns
